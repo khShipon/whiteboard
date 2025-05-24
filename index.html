@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My GitHub Whiteboard</title>
+    <style>
+        /* Basic CSS for layout and styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            height: 100vh; /* Full viewport height */
+            overflow: hidden; /* Prevent body scroll */
+            display: flex; /* Use flexbox for main layout */
+            background-color: #f8f8f8;
+            color: #333;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50; /* Darker blue-grey */
+            color: #ecf0f1; /* Light text */
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-right: 1px solid #1abc9c; /* Accent color */
+        }
+
+        .sidebar h2 {
+            margin-top: 0;
+            font-size: 1.5em;
+            color: #1abc9c; /* Accent color */
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .sidebar button {
+            background-color: #1abc9c; /* Accent color */
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: left; /* Align text to the left */
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar button:hover {
+            background-color: #16a085; /* Darker accent on hover */
+            transform: translateY(-1px);
+        }
+
+        .sidebar button:active {
+            transform: translateY(0);
+        }
+
+        .sidebar button.clear-btn {
+            background-color: #e74c3c; /* Red for clear action */
+            margin-top: 20px;
+        }
+
+        .sidebar button.clear-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .main-content {
+            flex-grow: 1; /* Takes up remaining space */
+            padding: 20px;
+            background-color: #ecf0f1; /* Light grey */
+            display: flex;
+            flex-direction: column;
+        }
+
+        #whiteboard {
+            flex-grow: 1; /* Takes up remaining space */
+            border: 1px solid #bdc3c7; /* Light border */
+            padding: 15px;
+            overflow-y: auto; /* Enable vertical scrolling */
+            line-height: 1.6;
+            font-size: 1.1em;
+            background-color: white;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+            outline: none; /* Remove default focus outline */
+            min-height: 200px; /* Ensure it has a minimum height */
+            border-radius: 5px;
+        }
+
+        /* Styles for highlighted and deleted text (using execCommand) */
+        /* execCommand typically applies inline styles, but if you want specific classes,
+           you'd need more complex JS. For simplicity, execCommand often uses 'mark' or 'span' with styles. */
+
+        /* A custom highlight style if execCommand doesn't use the backColor directly
+           or if you want to override it. execCommand('backColor') directly applies
+           a background-color style, so this class is mostly for illustrative purposes
+           or if you implement custom highlighting. */
+        .highlighted-text {
+            background-color: #f1c40f; /* Yellow */
+            padding: 1px 3px;
+            border-radius: 3px;
+        }
+
+        /* Styling for deleted text using the <s> (strikethrough) tag or specific class */
+        .deleted-text {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        /* Basic icons (optional, could use FontAwesome or SVG for real icons) */
+        .icon {
+            font-size: 1.2em;
+            width: 1.2em; /* Ensure consistent width */
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>Whiteboard Tools</h2>
+        <button id="boldBtn"><span class="icon"><strong>B</strong></span> Bold</button>
+        <button id="highlightBtn"><span class="icon" style="background-color: yellow; padding: 0 4px; border-radius: 3px;">H</span> Highlight</button>
+        <button id="strikethroughBtn"><span class="icon"><s>S</s></span> Strikethrough</button>
+        <!-- Add more buttons for other features as needed -->
+        <!-- <button id="italicBtn"><i>I</i> Italic</button> -->
+        <!-- <button id="underlineBtn"><u>U</u> Underline</button> -->
+        <!-- <button id="linkBtn">Link</button> -->
+
+        <button id="clearBtn" class="clear-btn"><span class="icon">🗑️</span> Clear Whiteboard</button>
+
+        <p style="font-size: 0.9em; line-height: 1.4; color: #b0bec5; margin-top: auto;">
+            Type directly into the right pane. Select text and click a tool on the left to apply formatting. Your work saves automatically!
+        </p>
+    </div>
+
+    <div class="main-content">
+        <div id="whiteboard" contenteditable="true">
+            <p>Welcome to your personal whiteboard!</p>
+            <p>You can <b>type</b> directly here, <i>paste</i> text from other sources, and apply formatting using the tools on the left.</p>
+            <p>Try selecting some text and clicking the <b>Bold</b>, <span style="background-color: yellow;">Highlight</span>, or <s>Strikethrough</s> buttons.</p>
+            <p>All your content will be automatically saved in your browser, even if you close this tab!</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const whiteboard = document.getElementById('whiteboard');
+            const boldBtn = document.getElementById('boldBtn');
+            const highlightBtn = document.getElementById('highlightBtn');
+            const strikethroughBtn = document.getElementById('strikethroughBtn');
+            const clearBtn = document.getElementById('clearBtn');
+
+            // --- Persistence (Load/Save) ---
+            const saveContent = () => {
+                localStorage.setItem('whiteboardContent', whiteboard.innerHTML);
+            };
+
+            const loadContent = () => {
+                const savedContent = localStorage.getItem('whiteboardContent');
+                if (savedContent) {
+                    whiteboard.innerHTML = savedContent;
+                } else {
+                    // Initial content if nothing saved
+                    whiteboard.innerHTML = `<p>Welcome to your personal whiteboard!</p>
+                                            <p>You can <b>type</b> directly here, <i>paste</i> text from other sources, and apply formatting using the tools on the left.</p>
+                                            <p>Try selecting some text and clicking the <b>Bold</b>, <span style="background-color: yellow;">Highlight</span>, or <s>Strikethrough</s> buttons.</p>
+                                            <p>All your content will be automatically saved in your browser, even if you close this tab!</p>`;
+                }
+            };
+
+            // Load content when the page loads
+            loadContent();
+
+            // Save content whenever the whiteboard content changes
+            whiteboard.addEventListener('input', saveContent);
+
+            // --- Formatting Functions ---
+            // document.execCommand is a simple way to apply rich text editing commands
+            // Note: It's deprecated but still widely supported for basic cases like this.
+            // For more robust editors, you'd look into the Selection API and Range objects.
+
+            boldBtn.addEventListener('click', () => {
+                document.execCommand('bold', false, null);
+                whiteboard.focus(); // Keep focus on the whiteboard
+            });
+
+            highlightBtn.addEventListener('click', () => {
+                // 'backColor' changes the background color of the selected text
+                document.execCommand('backColor', false, 'yellow'); // Or any other color like '#FFFF00'
+                whiteboard.focus();
+            });
+
+            strikethroughBtn.addEventListener('click', () => {
+                document.execCommand('strikeThrough', false, null);
+                whiteboard.focus();
+            });
+
+            clearBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear the whiteboard? This action cannot be undone.')) {
+                    whiteboard.innerHTML = ''; // Clear the content
+                    localStorage.removeItem('whiteboardContent'); // Clear from local storage
+                    whiteboard.focus();
+                }
+            });
+
+            // Optional: Ensure focus on whiteboard when page loads
+            whiteboard.focus();
+        });
+    </script>
+
+</body>
+</html>
