@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My GitHub Whiteboard</title>
+    <title>My Enhanced GitHub Whiteboard</title>
     <style>
         /* Basic CSS for layout and styling */
         body {
@@ -26,6 +26,7 @@
             flex-direction: column;
             gap: 10px;
             border-right: 1px solid #1abc9c; /* Accent color */
+            flex-shrink: 0; /* Don't allow sidebar to shrink */
         }
 
         .sidebar h2 {
@@ -35,6 +36,28 @@
             border-bottom: 1px solid #34495e;
             padding-bottom: 10px;
             margin-bottom: 20px;
+        }
+
+        .tool-group {
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* Space between buttons in a group */
+        }
+
+        .tool-group:last-of-type {
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        .tool-group h3 {
+            font-size: 1.1em;
+            color: #ecf0f1;
+            margin-top: 0;
+            margin-bottom: 5px; /* Adjust spacing */
         }
 
         .sidebar button {
@@ -50,6 +73,8 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            width: 100%; /* Make buttons full width in sidebar */
+            box-sizing: border-box; /* Include padding/border in width */
         }
 
         .sidebar button:hover {
@@ -84,7 +109,7 @@
             padding: 15px;
             overflow-y: auto; /* Enable vertical scrolling */
             line-height: 1.6;
-            font-size: 1.1em;
+            font-size: 1.1em; /* Default font size for the whiteboard area */
             background-color: white;
             box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
             outline: none; /* Remove default focus outline */
@@ -92,31 +117,26 @@
             border-radius: 5px;
         }
 
-        /* Styles for highlighted and deleted text (using execCommand) */
-        /* execCommand typically applies inline styles, but if you want specific classes,
-           you'd need more complex JS. For simplicity, execCommand often uses 'mark' or 'span' with styles. */
+        /* Basic icons (optional, could use FontAwesome or SVG for real icons) */
+        .icon {
+            font-size: 1.2em;
+            width: 1.2em; /* Ensure consistent width */
+            text-align: center;
+            display: inline-block; /* For better control of text/icon alignment */
+        }
 
-        /* A custom highlight style if execCommand doesn't use the backColor directly
-           or if you want to override it. execCommand('backColor') directly applies
-           a background-color style, so this class is mostly for illustrative purposes
-           or if you implement custom highlighting. */
+        /* Styling for highlighting - execCommand('backColor') applies inline style directly,
+           so this class is mostly for illustrative purpose or if you manually apply it. */
         .highlighted-text {
             background-color: #f1c40f; /* Yellow */
             padding: 1px 3px;
             border-radius: 3px;
         }
 
-        /* Styling for deleted text using the <s> (strikethrough) tag or specific class */
+        /* Styling for deleted text using the <s> (strikethrough) tag */
         .deleted-text {
             text-decoration: line-through;
             opacity: 0.6;
-        }
-
-        /* Basic icons (optional, could use FontAwesome or SVG for real icons) */
-        .icon {
-            font-size: 1.2em;
-            width: 1.2em; /* Ensure consistent width */
-            text-align: center;
         }
     </style>
 </head>
@@ -124,18 +144,35 @@
 
     <div class="sidebar">
         <h2>Whiteboard Tools</h2>
-        <button id="boldBtn"><span class="icon"><strong>B</strong></span> Bold</button>
-        <button id="highlightBtn"><span class="icon" style="background-color: yellow; padding: 0 4px; border-radius: 3px;">H</span> Highlight</button>
-        <button id="strikethroughBtn"><span class="icon"><s>S</s></span> Strikethrough</button>
-        <!-- Add more buttons for other features as needed -->
-        <!-- <button id="italicBtn"><i>I</i> Italic</button> -->
-        <!-- <button id="underlineBtn"><u>U</u> Underline</button> -->
-        <!-- <button id="linkBtn">Link</button> -->
+        <div class="tool-group">
+            <h3>Text Formatting</h3>
+            <button id="boldBtn"><span class="icon"><strong>B</strong></span> Bold</button>
+            <button id="italicBtn"><span class="icon"><i>I</i></span> Italic</button>
+            <button id="underlineBtn"><span class="icon"><u>U</u></span> Underline</button>
+            <button id="highlightBtn"><span class="icon" style="background-color: yellow; padding: 0 4px; border-radius: 3px;">H</span> Highlight</button>
+            <button id="strikethroughBtn"><span class="icon"><s>S</s></span> Strikethrough</button>
+        </div>
+
+        <div class="tool-group">
+            <h3>Font Size</h3>
+            <!-- execCommand('fontSize') uses values 1-7 which map to HTML font sizes (e.g., <font size="3">) -->
+            <!-- This is a deprecated method, but functional for simple contenteditable cases. -->
+            <button id="fontSizeNormalBtn"><span class="icon" style="font-size: 0.8em;">Aa</span> Normal</button>
+            <button id="fontSizeLargeBtn"><span class="icon" style="font-size: 1.1em;">Aa</span> Large</button>
+            <button id="fontSizeHugeBtn"><span class="icon" style="font-size: 1.4em;">Aa</span> Huge</button>
+        </div>
 
         <button id="clearBtn" class="clear-btn"><span class="icon">🗑️</span> Clear Whiteboard</button>
 
         <p style="font-size: 0.9em; line-height: 1.4; color: #b0bec5; margin-top: auto;">
-            Type directly into the right pane. Select text and click a tool on the left to apply formatting. Your work saves automatically!
+            Type directly into the right pane. Select text and click a tool on the left or use keyboard shortcuts. Your work saves automatically!
+            <br><br>
+            <b>Keyboard Shortcuts:</b><br>
+            Ctrl/Cmd + B: Bold<br>
+            Ctrl/Cmd + I: Italic<br>
+            Ctrl/Cmd + U: Underline<br>
+            Ctrl/Cmd + H: Highlight<br>
+            Ctrl/Cmd + D: Strikethrough
         </p>
     </div>
 
@@ -144,6 +181,7 @@
             <p>Welcome to your personal whiteboard!</p>
             <p>You can <b>type</b> directly here, <i>paste</i> text from other sources, and apply formatting using the tools on the left.</p>
             <p>Try selecting some text and clicking the <b>Bold</b>, <span style="background-color: yellow;">Highlight</span>, or <s>Strikethrough</s> buttons.</p>
+            <p>You can also use <span style="font-size: x-large;">different font sizes</span> now!</p>
             <p>All your content will be automatically saved in your browser, even if you close this tab!</p>
         </div>
     </div>
@@ -152,8 +190,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             const whiteboard = document.getElementById('whiteboard');
             const boldBtn = document.getElementById('boldBtn');
+            const italicBtn = document.getElementById('italicBtn');
+            const underlineBtn = document.getElementById('underlineBtn');
             const highlightBtn = document.getElementById('highlightBtn');
             const strikethroughBtn = document.getElementById('strikethroughBtn');
+            const fontSizeNormalBtn = document.getElementById('fontSizeNormalBtn');
+            const fontSizeLargeBtn = document.getElementById('fontSizeLargeBtn');
+            const fontSizeHugeBtn = document.getElementById('fontSizeHugeBtn');
             const clearBtn = document.getElementById('clearBtn');
 
             // --- Persistence (Load/Save) ---
@@ -170,6 +213,7 @@
                     whiteboard.innerHTML = `<p>Welcome to your personal whiteboard!</p>
                                             <p>You can <b>type</b> directly here, <i>paste</i> text from other sources, and apply formatting using the tools on the left.</p>
                                             <p>Try selecting some text and clicking the <b>Bold</b>, <span style="background-color: yellow;">Highlight</span>, or <s>Strikethrough</s> buttons.</p>
+                                            <p>You can also use <span style="font-size: x-large;">different font sizes</span> now!</p>
                                             <p>All your content will be automatically saved in your browser, even if you close this tab!</p>`;
                 }
             };
@@ -177,35 +221,72 @@
             // Load content when the page loads
             loadContent();
 
-            // Save content whenever the whiteboard content changes
+            // Save content whenever the whiteboard content changes (input event fires on text/content changes)
             whiteboard.addEventListener('input', saveContent);
 
             // --- Formatting Functions ---
-            // document.execCommand is a simple way to apply rich text editing commands
+            // document.execCommand is a simple way to apply rich text editing commands.
             // Note: It's deprecated but still widely supported for basic cases like this.
-            // For more robust editors, you'd look into the Selection API and Range objects.
+            // For more robust editors, you'd typically use the Selection and Range APIs directly.
 
-            boldBtn.addEventListener('click', () => {
-                document.execCommand('bold', false, null);
-                whiteboard.focus(); // Keep focus on the whiteboard
-            });
+            const applyCommand = (command, value = null) => {
+                document.execCommand(command, false, value);
+                whiteboard.focus(); // Keep focus on the whiteboard after applying command
+            };
 
-            highlightBtn.addEventListener('click', () => {
-                // 'backColor' changes the background color of the selected text
-                document.execCommand('backColor', false, 'yellow'); // Or any other color like '#FFFF00'
-                whiteboard.focus();
-            });
+            boldBtn.addEventListener('click', () => applyCommand('bold'));
+            italicBtn.addEventListener('click', () => applyCommand('italic'));
+            underlineBtn.addEventListener('click', () => applyCommand('underline'));
+            highlightBtn.addEventListener('click', () => applyCommand('backColor', 'yellow')); // 'backColor' changes background
+            strikethroughBtn.addEventListener('click', () => applyCommand('strikeThrough'));
 
-            strikethroughBtn.addEventListener('click', () => {
-                document.execCommand('strikeThrough', false, null);
-                whiteboard.focus();
-            });
+            // Font Size - using values 1-7 (e.g., 3=normal, 5=large, 7=huge)
+            // This applies <font size="X"> tags, which are deprecated.
+            fontSizeNormalBtn.addEventListener('click', () => applyCommand('fontSize', '3')); // Corresponds to <font size="3"> (small/medium)
+            fontSizeLargeBtn.addEventListener('click', () => applyCommand('fontSize', '5')); // Corresponds to <font size="5"> (large)
+            fontSizeHugeBtn.addEventListener('click', () => applyCommand('fontSize', '7')); // Corresponds to <font size="7"> (xx-large)
+
 
             clearBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to clear the whiteboard? This action cannot be undone.')) {
                     whiteboard.innerHTML = ''; // Clear the content
                     localStorage.removeItem('whiteboardContent'); // Clear from local storage
                     whiteboard.focus();
+                }
+            });
+
+            // --- Keyboard Shortcuts ---
+            document.addEventListener('keydown', (event) => {
+                // Only trigger shortcuts if the whiteboard or its children are currently focused
+                if (whiteboard.contains(document.activeElement)) {
+                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                    const isCtrlOrCmd = isMac ? event.metaKey : event.ctrlKey; // Use MetaKey for Mac (Cmd), CtrlKey for others
+
+                    if (isCtrlOrCmd) {
+                        switch (event.key.toLowerCase()) {
+                            case 'b':
+                                applyCommand('bold');
+                                event.preventDefault(); // Prevent browser default (e.g., opening bookmarks with Ctrl+B)
+                                break;
+                            case 'i':
+                                applyCommand('italic');
+                                event.preventDefault();
+                                break;
+                            case 'u':
+                                applyCommand('underline');
+                                event.preventDefault();
+                                break;
+                            case 'h':
+                                applyCommand('backColor', 'yellow');
+                                event.preventDefault();
+                                break;
+                            case 'd': // 'd' for delete/strikethrough
+                                applyCommand('strikeThrough');
+                                event.preventDefault();
+                                break;
+                            // Add more shortcuts here if needed
+                        }
+                    }
                 }
             });
 
