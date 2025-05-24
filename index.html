@@ -138,6 +138,31 @@
             text-decoration: line-through;
             opacity: 0.6;
         }
+
+        .color-palette {
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap */
+            gap: 5px; /* Space between color buttons */
+            margin-bottom: 10px;
+        }
+        .color-btn {
+            width: 25px;
+            height: 25px;
+            border: 1px solid #7f8c8d; /* Light grey border */
+            border-radius: 4px; /* Slightly rounded corners */
+            cursor: pointer;
+            padding: 0; /* Remove default padding */
+            font-size: 0; /* Hide any accidental text/whitespace */
+            transition: transform 0.1s ease, border-color 0.2s ease;
+        }
+        .color-btn:hover {
+            transform: scale(1.1);
+            border-color: #1abc9c; /* Accent color border on hover */
+        }
+        .color-btn.active-color {
+            border: 2px solid #1abc9c; /* Prominent border for active color */
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -162,6 +187,27 @@
             <button id="fontSizeHugeBtn"><span class="icon" style="font-size: 1.4em;">Aa</span> Huge</button>
         </div>
 
+        <div class="tool-group">
+            <h3>Drawing Tools</h3>
+            <button id="pencilToolBtn"><span class="icon">✏️</span> Pencil</button>
+            <button id="rectToolBtn"><span class="icon">▭</span> Rectangle</button>
+            <button id="circleToolBtn"><span class="icon">⚪</span> Circle</button>
+            <button id="eraserToolBtn"><span class="icon">🧼</span> Eraser</button>
+            <button id="textToolBtn"><span class="icon" style="font-weight:bold;">T</span> Text</button>
+        </div>
+
+        <div class="tool-group">
+            <h3>Colors</h3>
+            <div class="color-palette">
+                <button class="color-btn active-color" data-color="black" style="background-color: black;"></button>
+                <button class="color-btn" data-color="red" style="background-color: red;"></button>
+                <button class="color-btn" data-color="blue" style="background-color: blue;"></button>
+                <button class="color-btn" data-color="green" style="background-color: green;"></button>
+                <button class="color-btn" data-color="yellow" style="background-color: yellow;"></button>
+                <button class="color-btn" data-color="#FFA500" style="background-color: orange;"></button> <!-- Orange -->
+            </div>
+        </div>
+
         <button id="clearBtn" class="clear-btn"><span class="icon">🗑️</span> Clear Whiteboard</button>
 
         <p style="font-size: 0.9em; line-height: 1.4; color: #b0bec5; margin-top: auto;">
@@ -177,18 +223,291 @@
     </div>
 
     <div class="main-content">
-        <div id="whiteboard" contenteditable="true">
-            <p>Welcome to your personal whiteboard!</p>
-            <p>You can <b>type</b> directly here, <i>paste</i> text from other sources, and apply formatting using the tools on the left.</p>
-            <p>Try selecting some text and clicking the <b>Bold</b>, <span style="background-color: yellow;">Highlight</span>, or <s>Strikethrough</s> buttons.</p>
-            <p>You can also use <span style="font-size: x-large;">different font sizes</span> now!</p>
-            <p>All your content will be automatically saved in your browser, even if you close this tab!</p>
-        </div>
+        <canvas id="whiteboard"></canvas>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const whiteboard = document.getElementById('whiteboard');
+            const whiteboardCanvas = document.getElementById('whiteboard');
+            const mainContent = document.querySelector('.main-content');
+            const ctx = whiteboardCanvas.getContext('2d');
+
+            function resizeCanvas() {
+                // Save current content if canvas has non-zero dimensions
+                let currentDataUrl = null;
+                if (whiteboardCanvas.width > 0 && whiteboardCanvas.height > 0) {
+                    currentDataUrl = whiteboardCanvas.toDataURL('image/png');
+                }
+
+                const style = getComputedStyle(mainContent);
+                const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+                const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+                
+                // Adjust for the parent's padding and a little extra space if needed
+                whiteboardCanvas.width = mainContent.clientWidth - paddingX;
+                // Consider other elements like parent border if they affect usable height
+                whiteboardCanvas.height = mainContent.clientHeight - paddingY - (parseFloat(style.borderTopWidth) || 0) * 2;
+
+
+                drawCanvasBase(); // Draw the new background/border
+
+                // Restore content if it was saved
+                if (currentDataUrl) {
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0);
+                    };
+                    img.src = currentDataUrl;
+                }
+            }
+
+            function drawCanvasBase() {
+                ctx.fillStyle = '#FFFFFF'; // White background
+                ctx.fillRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+                ctx.strokeStyle = '#000000'; // Black border
+                ctx.strokeRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+            }
+
+            // --- Persistence (Load/Save) ---
+            function saveContent() {
+                localStorage.setItem('whiteboardContent', whiteboardCanvas.toDataURL('image/png'));
+                console.log("Canvas content saved.");
+            }
+
+            function loadContent() {
+                drawCanvasBase(); // Always draw the base first
+                const savedImageURL = localStorage.getItem('whiteboardContent');
+                if (savedImageURL) {
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0); // Draw the saved image over the base
+                        console.log("Canvas content loaded.");
+                    };
+                    img.src = savedImageURL;
+                }
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            // Initial Load Sequence
+            resizeCanvas(); // Sets initial size and base
+            loadContent();  // Loads saved content over the base
+
+            // --- Drawing State and Tool Variables ---
+            let isDrawing = false;
+            let currentTool = ''; // e.g., 'pencil', 'rectangle', 'circle', 'eraser'
+            let selectedColor = 'black'; // Default drawing color
+            let currentLineWidth = 2; // Default line width
+            let lastX = 0, lastY = 0; // For pencil and eraser
+            let startX = 0, startY = 0; // For rectangle
+            let centerX = 0, centerY = 0; // For circle
+            let currentMouseX = 0, currentMouseY = 0; // To store current mouse position for mouseup/out
+            let savedCanvasImage = null; // For saving canvas state during shape drawing
+
+            // --- Tool Button References ---
+            const pencilToolBtn = document.getElementById('pencilToolBtn');
+            const rectToolBtn = document.getElementById('rectToolBtn');
+            const circleToolBtn = document.getElementById('circleToolBtn');
+            const eraserToolBtn = document.getElementById('eraserToolBtn');
+            const textToolBtn = document.getElementById('textToolBtn');
+            const colorButtons = document.querySelectorAll('.color-btn');
+            const clearBtn = document.getElementById('clearBtn'); 
+
+
+            // --- Tool Selection Event Listeners ---
+            pencilToolBtn.addEventListener('click', () => {
+                currentTool = 'pencil';
+                currentLineWidth = 2;
+                isDrawing = false; // Reset drawing state when changing tools
+                console.log('Pencil tool selected, width:', currentLineWidth);
+            });
+
+            rectToolBtn.addEventListener('click', () => {
+                currentTool = 'rectangle';
+                currentLineWidth = 2; 
+                isDrawing = false;
+                console.log('Rectangle tool selected, width:', currentLineWidth);
+            });
+
+            circleToolBtn.addEventListener('click', () => {
+                currentTool = 'circle';
+                currentLineWidth = 2; 
+                isDrawing = false;
+                console.log('Circle tool selected, width:', currentLineWidth);
+            });
+
+            eraserToolBtn.addEventListener('click', () => {
+                currentTool = 'eraser';
+                currentLineWidth = 20; 
+                isDrawing = false;
+                console.log('Eraser tool selected, width:', currentLineWidth);
+            });
+
+            textToolBtn.addEventListener('click', () => {
+                currentTool = 'text';
+                isDrawing = false; // Text tool does not use drag-drawing
+                // currentLineWidth = 0; // Optional: Text tool doesn't use lineWidth
+                console.log('Text tool selected');
+            });
+
+            colorButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    document.querySelector('.color-btn.active-color').classList.remove('active-color');
+                    button.classList.add('active-color');
+                    selectedColor = button.dataset.color;
+                    console.log('Color selected:', selectedColor);
+                });
+            });
+
+            // --- Canvas Mouse Event Listeners for Drawing ---
+            whiteboardCanvas.addEventListener('mousedown', (e) => {
+                currentMouseX = e.offsetX;
+                currentMouseY = e.offsetY;
+
+                if (currentTool === 'text') {
+                    isDrawing = false; // Ensure not in drawing mode for text
+                    const text = prompt('Enter text to add:');
+                    if (text) { 
+                        ctx.fillStyle = selectedColor; 
+                        ctx.font = '16px Arial'; 
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'top';
+                        ctx.fillText(text, currentMouseX, currentMouseY);
+                        saveContent(); 
+                    }
+                } else if (e.buttons === 1) { // Standard drawing tools logic for left mouse button
+                    isDrawing = true; 
+                    [lastX, lastY] = [currentMouseX, currentMouseY]; // Initialize for pencil/eraser
+
+                    ctx.beginPath(); // Start a new path for drawing tools
+
+                    if (currentTool === 'pencil') {
+                        ctx.strokeStyle = selectedColor;
+                        ctx.lineWidth = currentLineWidth;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.moveTo(lastX, lastY);
+                    } else if (currentTool === 'eraser') {
+                        ctx.strokeStyle = '#FFFFFF'; 
+                        ctx.lineWidth = currentLineWidth;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.moveTo(lastX, lastY);
+                    } else if (currentTool === 'rectangle') {
+                        startX = currentMouseX;
+                        startY = currentMouseY;
+                        savedCanvasImage = ctx.getImageData(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+                    } else if (currentTool === 'circle') {
+                        centerX = currentMouseX;
+                        centerY = currentMouseY;
+                        savedCanvasImage = ctx.getImageData(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+                    }
+                }
+            });
+
+            whiteboardCanvas.addEventListener('mousemove', (e) => {
+                if (!isDrawing) return;
+
+                currentMouseX = e.offsetX; 
+                currentMouseY = e.offsetY;
+
+                if (currentTool === 'pencil' || currentTool === 'eraser') {
+                    // For pencil and eraser, strokeStyle and lineWidth are already set in mousedown
+                    ctx.lineTo(currentMouseX, currentMouseY);
+                    ctx.stroke();
+                    // For continuous drawing as one path, we don't beginPath/moveTo here.
+                    // If we wanted separate segments:
+                    // ctx.beginPath();
+                    // ctx.moveTo(currentMouseX, currentMouseY);
+                    [lastX, lastY] = [currentMouseX, currentMouseY]; // Update for next segment if needed by another logic
+                } else if (currentTool === 'rectangle') {
+                    if (savedCanvasImage) {
+                        ctx.putImageData(savedCanvasImage, 0, 0);
+                    }
+                    ctx.beginPath(); // Start new path for current preview rect
+                    ctx.strokeStyle = selectedColor;
+                    ctx.lineWidth = currentLineWidth;
+                    ctx.rect(startX, startY, currentMouseX - startX, currentMouseY - startY);
+                    ctx.stroke();
+                } else if (currentTool === 'circle') {
+                    if (savedCanvasImage) {
+                        ctx.putImageData(savedCanvasImage, 0, 0);
+                    }
+                    const radius = Math.sqrt(Math.pow(currentMouseX - centerX, 2) + Math.pow(currentMouseY - centerY, 2));
+                    ctx.beginPath(); // Start new path for current preview circle
+                    ctx.strokeStyle = selectedColor;
+                    ctx.lineWidth = currentLineWidth;
+                    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+            });
+
+            whiteboardCanvas.addEventListener('mouseup', () => {
+                if (!isDrawing) return;
+                
+                // For pencil/eraser, the path is already stroked in mousemove.
+                // If we started a path in mousedown, we might want to close it or leave it open.
+                // ctx.closePath(); // Optional, depending on desired line end behavior for pencil/eraser
+
+                if (currentTool === 'rectangle') {
+                    if (savedCanvasImage) {
+                        ctx.putImageData(savedCanvasImage, 0, 0); 
+                    }
+                    ctx.beginPath(); // Final rectangle
+                    ctx.strokeStyle = selectedColor;
+                    ctx.lineWidth = currentLineWidth;
+                    ctx.rect(startX, startY, currentMouseX - startX, currentMouseY - startY);
+                    ctx.stroke();
+                    savedCanvasImage = null; 
+                } else if (currentTool === 'circle') {
+                    if (savedCanvasImage) {
+                        ctx.putImageData(savedCanvasImage, 0, 0);
+                    }
+                    const radius = Math.sqrt(Math.pow(currentMouseX - centerX, 2) + Math.pow(currentMouseY - centerY, 2));
+                    ctx.beginPath(); // Final circle
+                    ctx.strokeStyle = selectedColor;
+                    ctx.lineWidth = currentLineWidth;
+                    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    savedCanvasImage = null;
+                }
+                
+                if (currentTool === 'pencil' || currentTool === 'eraser' || currentTool === 'rectangle' || currentTool === 'circle') {
+                    saveContent(); // Save after any drawing operation is completed
+                }
+                isDrawing = false;
+            });
+
+            whiteboardCanvas.addEventListener('mouseout', () => {
+                if (isDrawing) {
+                    // Similar to mouseup, finalize shapes if drawing
+                    if (currentTool === 'rectangle') {
+                        if (savedCanvasImage) {
+                             ctx.putImageData(savedCanvasImage, 0, 0); 
+                        }
+                        ctx.beginPath();
+                        ctx.strokeStyle = selectedColor;
+                        ctx.lineWidth = currentLineWidth;
+                        ctx.rect(startX, startY, currentMouseX - startX, currentMouseY - startY); 
+                        ctx.stroke();
+                        savedCanvasImage = null; 
+                    } else if (currentTool === 'circle') {
+                        if (savedCanvasImage) {
+                            ctx.putImageData(savedCanvasImage, 0, 0);
+                        }
+                        const radius = Math.sqrt(Math.pow(currentMouseX - centerX, 2) + Math.pow(currentMouseY - centerY, 2));
+                        ctx.beginPath();
+                        ctx.strokeStyle = selectedColor;
+                        ctx.lineWidth = currentLineWidth;
+                        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                        ctx.stroke();
+                        savedCanvasImage = null;
+                    }
+                    // For pencil/eraser, the line is drawn up to the point of mouseout.
+                    isDrawing = false; 
+                }
+            });
+
+
             const boldBtn = document.getElementById('boldBtn');
             const italicBtn = document.getElementById('italicBtn');
             const underlineBtn = document.getElementById('underlineBtn');
@@ -197,101 +516,57 @@
             const fontSizeNormalBtn = document.getElementById('fontSizeNormalBtn');
             const fontSizeLargeBtn = document.getElementById('fontSizeLargeBtn');
             const fontSizeHugeBtn = document.getElementById('fontSizeHugeBtn');
-            const clearBtn = document.getElementById('clearBtn');
+            // const clearBtn = document.getElementById('clearBtn'); // Already referenced above
 
-            // --- Persistence (Load/Save) ---
-            const saveContent = () => {
-                localStorage.setItem('whiteboardContent', whiteboard.innerHTML);
-            };
-
-            const loadContent = () => {
-                const savedContent = localStorage.getItem('whiteboardContent');
-                if (savedContent) {
-                    whiteboard.innerHTML = savedContent;
-                } else {
-                    // Initial content if nothing saved
-                    whiteboard.innerHTML = `<p>Welcome to your personal whiteboard!</p>
-                                            <p>You can <b>type</b> directly here, <i>paste</i> text from other sources, and apply formatting using the tools on the left.</p>
-                                            <p>Try selecting some text and clicking the <b>Bold</b>, <span style="background-color: yellow;">Highlight</span>, or <s>Strikethrough</s> buttons.</p>
-                                            <p>You can also use <span style="font-size: x-large;">different font sizes</span> now!</p>
-                                            <p>All your content will be automatically saved in your browser, even if you close this tab!</p>`;
-                }
-            };
-
-            // Load content when the page loads
-            loadContent();
-
-            // Save content whenever the whiteboard content changes (input event fires on text/content changes)
-            whiteboard.addEventListener('input', saveContent);
-
-            // --- Formatting Functions ---
-            // document.execCommand is a simple way to apply rich text editing commands.
-            // Note: It's deprecated but still widely supported for basic cases like this.
-            // For more robust editors, you'd typically use the Selection and Range APIs directly.
-
-            const applyCommand = (command, value = null) => {
-                document.execCommand(command, false, value);
-                whiteboard.focus(); // Keep focus on the whiteboard after applying command
-            };
-
-            boldBtn.addEventListener('click', () => applyCommand('bold'));
-            italicBtn.addEventListener('click', () => applyCommand('italic'));
-            underlineBtn.addEventListener('click', () => applyCommand('underline'));
-            highlightBtn.addEventListener('click', () => applyCommand('backColor', 'yellow')); // 'backColor' changes background
-            strikethroughBtn.addEventListener('click', () => applyCommand('strikeThrough'));
-
-            // Font Size - using values 1-7 (e.g., 3=normal, 5=large, 7=huge)
-            // This applies <font size="X"> tags, which are deprecated.
-            fontSizeNormalBtn.addEventListener('click', () => applyCommand('fontSize', '3')); // Corresponds to <font size="3"> (small/medium)
-            fontSizeLargeBtn.addEventListener('click', () => applyCommand('fontSize', '5')); // Corresponds to <font size="5"> (large)
-            fontSizeHugeBtn.addEventListener('click', () => applyCommand('fontSize', '7')); // Corresponds to <font size="7"> (xx-large)
+            // --- Formatting Functions (Commented out as they are not used with canvas) ---
+            // ... (keep existing commented out formatting functions)
 
 
             clearBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to clear the whiteboard? This action cannot be undone.')) {
-                    whiteboard.innerHTML = ''; // Clear the content
-                    localStorage.removeItem('whiteboardContent'); // Clear from local storage
-                    whiteboard.focus();
+                    ctx.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height); 
+                    drawCanvasBase(); // Redraw the background/border
+                    saveContent();    // Save the cleared state
                 }
             });
 
-            // --- Keyboard Shortcuts ---
-            document.addEventListener('keydown', (event) => {
-                // Only trigger shortcuts if the whiteboard or its children are currently focused
-                if (whiteboard.contains(document.activeElement)) {
-                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-                    const isCtrlOrCmd = isMac ? event.metaKey : event.ctrlKey; // Use MetaKey for Mac (Cmd), CtrlKey for others
+            // --- Keyboard Shortcuts (Commented out as they are not used with canvas drawing) ---
+            // document.addEventListener('keydown', (event) => {
+            //     // Only trigger shortcuts if the whiteboard or its children are currently focused
+            //     if (whiteboardCanvas.contains(document.activeElement)) {
+            //         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            //         const isCtrlOrCmd = isMac ? event.metaKey : event.ctrlKey; // Use MetaKey for Mac (Cmd), CtrlKey for others
 
-                    if (isCtrlOrCmd) {
-                        switch (event.key.toLowerCase()) {
-                            case 'b':
-                                applyCommand('bold');
-                                event.preventDefault(); // Prevent browser default (e.g., opening bookmarks with Ctrl+B)
-                                break;
-                            case 'i':
-                                applyCommand('italic');
-                                event.preventDefault();
-                                break;
-                            case 'u':
-                                applyCommand('underline');
-                                event.preventDefault();
-                                break;
-                            case 'h':
-                                applyCommand('backColor', 'yellow');
-                                event.preventDefault();
-                                break;
-                            case 'd': // 'd' for delete/strikethrough
-                                applyCommand('strikeThrough');
-                                event.preventDefault();
-                                break;
-                            // Add more shortcuts here if needed
-                        }
-                    }
-                }
-            });
+            //         if (isCtrlOrCmd) {
+            //             switch (event.key.toLowerCase()) {
+            //                 case 'b':
+            //                     applyCommand('bold');
+            //                     event.preventDefault(); // Prevent browser default (e.g., opening bookmarks with Ctrl+B)
+            //                     break;
+            //                 case 'i':
+            //                     applyCommand('italic');
+            //                     event.preventDefault();
+            //                     break;
+            //                 case 'u':
+            //                     applyCommand('underline');
+            //                     event.preventDefault();
+            //                     break;
+            //                 case 'h':
+            //                     applyCommand('backColor', 'yellow');
+            //                     event.preventDefault();
+            //                     break;
+            //                 case 'd': // 'd' for delete/strikethrough
+            //                     applyCommand('strikeThrough');
+            //                     event.preventDefault();
+            //                     break;
+            //                 // Add more shortcuts here if needed
+            //             }
+            //         }
+            //     }
+            // });
 
             // Optional: Ensure focus on whiteboard when page loads
-            whiteboard.focus();
+             whiteboardCanvas.focus();
         });
     </script>
 
