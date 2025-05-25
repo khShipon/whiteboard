@@ -89,18 +89,22 @@
       position: absolute;
       bottom: 4px; right: 4px;
     }
-    .sticky-note textarea {
+    .sticky-note .sticky-toolbar {
+      margin-bottom: 4px;
+    }
+    .sticky-note .sticky-content {
       width: 100%;
-      height: 80%;
+      min-height: 50px;
       border: none;
       background: none;
-      resize: none;
       font-size: 16px;
       font-family: inherit;
       outline: none;
       color: #333;
       background: transparent;
       margin-top: 5px;
+      resize: none;
+      box-sizing: border-box;
     }
     .image-item {
       position: absolute;
@@ -188,33 +192,6 @@
       padding: 0 12px;
       cursor: pointer;
     }
-    #history-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding-bottom: 5px;
-    }
-    #history-list {
-      flex: 1;
-      overflow-y: auto;
-      margin: 0 10px 0 10px;
-      background: #f4f4fc;
-      border-radius: 5px;
-      padding: 10px;
-      font-size: 14px;
-    }
-    .history-item {
-      padding: 6px 8px;
-      margin-bottom: 6px;
-      background: #fff;
-      border-radius: 6px;
-      cursor: pointer;
-      border: 1px solid #eee;
-      transition: background 0.15s;
-    }
-    .history-item:hover {
-      background: #e3f2fd;
-    }
     /* Tooltips */
     [tooltip] {
       position: relative;
@@ -237,6 +214,29 @@
       #side-panel { width: 100vw; right: 0; left: 0; top: auto; bottom: 0; height: 320px; }
       #main-container { right: 0; bottom: 320px; }
       #toolbar { right: 0; }
+    }
+    #text-editor-modal {
+      display: none;
+      position: fixed;
+      z-index: 1001;
+      background: #fff;
+      border: 1px solid #aaa;
+      padding: 16px;
+      box-shadow: 0 2px 16px #3334;
+      left: 50%; top: 50%;
+      transform: translate(-50%,-50%);
+    }
+    #text-editor-modal .modal-toolbar button {
+      margin-right: 6px;
+    }
+    #text-editor-modal #modal-editor {
+      width: 300px;
+      height: 80px;
+      border: 1px solid #ccc;
+      padding: 8px;
+      margin-bottom: 8px;
+      outline: none;
+      overflow-y: auto;
     }
   </style>
 </head>
@@ -265,6 +265,10 @@
     <input type="file" id="img-upload" accept="image/*" style="display:none;">
     <button id="img-upload-btn" tooltip="Upload Image">🖼️</button>
     <button id="export-btn" tooltip="Export as Image">💾</button>
+    <button id="bold-btn" tooltip="Bold"><b>B</b></button>
+    <button id="italic-btn" tooltip="Italic"><i>I</i></button>
+    <button id="underline-btn" tooltip="Underline"><u>U</u></button>
+    <button id="highlight-btn" tooltip="Highlight" style="background:yellow;">H</button>
   </div>
   <!-- Main Whiteboard Area -->
   <div id="main-container">
@@ -283,10 +287,18 @@
         <button id="chat-send">Send</button>
       </div>
     </div>
-    <h3>Board History</h3>
-    <div id="history-panel">
-      <div id="history-list"></div>
+  </div>
+  <!-- Modal for Text Tool -->
+  <div id="text-editor-modal">
+    <div class="modal-toolbar">
+      <button id="modal-bold"><b>B</b></button>
+      <button id="modal-italic"><i>I</i></button>
+      <button id="modal-underline"><u>U</u></button>
+      <button id="modal-highlight" style="background:yellow;">H</button>
     </div>
+    <div id="modal-editor" contenteditable="true"></div>
+    <button id="modal-ok">OK</button>
+    <button id="modal-cancel">Cancel</button>
   </div>
   <script>
     // --- Whiteboard State ---
@@ -330,6 +342,11 @@
     const imgUpload = document.getElementById('img-upload');
     const imgUploadBtn = document.getElementById('img-upload-btn');
     const exportBtn = document.getElementById('export-btn');
+    // Text formatting buttons
+    const boldBtn = document.getElementById('bold-btn');
+    const italicBtn = document.getElementById('italic-btn');
+    const underlineBtn = document.getElementById('underline-btn');
+    const highlightBtn = document.getElementById('highlight-btn');
 
     // --- Event Listeners for Toolbar ---
     penBtn.onclick = () => { setTool('pen'); };
@@ -348,6 +365,11 @@
     imgUploadBtn.onclick = () => { imgUpload.click(); };
     imgUpload.onchange = handleImageUpload;
     exportBtn.onclick = exportAsImage;
+    // Formatting for text tool, applies in modal only
+    boldBtn.onclick = () => document.execCommand('bold');
+    italicBtn.onclick = () => document.execCommand('italic');
+    underlineBtn.onclick = () => document.execCommand('underline');
+    highlightBtn.onclick = () => document.execCommand('hiliteColor', false, 'yellow');
 
     function setTool(t) {
       tool = t;
@@ -397,7 +419,7 @@
         if (act.type === 'pen') drawStroke(act, false);
         else if (act.type === 'eraser') drawStroke(act, true);
         else if (act.type === 'shape') drawShape(act);
-        else if (act.type === 'text') drawText(act);
+        else if (act.type === 'text') drawRichText(act);
         else if (act.type === 'image') drawImageOnCanvas(act);
       }
       ctx.restore();
@@ -437,7 +459,6 @@
         ctx.lineTo(x1, y1);
         ctx.stroke();
       } else if (shape === 'arrow') {
-        // Draw line
         ctx.beginPath();
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);
@@ -458,13 +479,45 @@
       ctx.restore();
     }
 
-    function drawText(act) {
+    // --- RICH TEXT RENDERING ON CANVAS ---
+    function drawRichText(act) {
+      // Basic HTML rendering (bold, italic, underline, highlight)
+      // Note: Canvas does not support HTML, so we parse and render linearly.
+      let tempDiv = document.createElement('div');
+      tempDiv.innerHTML = act.text;
+      let x = act.x, y = act.y;
       ctx.save();
-      ctx.font = `bold ${act.size||22}px Arial`;
-      ctx.fillStyle = act.color;
-      ctx.globalAlpha = 1.0;
       ctx.textBaseline = 'top';
-      ctx.fillText(act.text, act.x, act.y);
+
+      function drawNode(node, fontStyle) {
+        if (node.nodeType === 3) { // text node
+          ctx.font =
+            (fontStyle.bold?'bold ':'') +
+            (fontStyle.italic?'italic ':'') +
+            (act.size||22) + "px Arial";
+          ctx.fillStyle = fontStyle.highlight || fontStyle.color || act.color;
+          ctx.fillText(node.nodeValue, x, y);
+          // underline
+          if (fontStyle.underline) {
+            let w = ctx.measureText(node.nodeValue).width;
+            ctx.beginPath();
+            ctx.moveTo(x, y + (act.size||22));
+            ctx.lineTo(x + w, y + (act.size||22));
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.stroke();
+          }
+          x += ctx.measureText(node.nodeValue).width;
+        } else if (node.nodeType === 1) { // element
+          let newFont = {...fontStyle};
+          if (node.tagName === 'B' || node.tagName === 'STRONG') newFont.bold = true;
+          if (node.tagName === 'I' || node.tagName === 'EM') newFont.italic = true;
+          if (node.tagName === 'U') newFont.underline = true;
+          if (node.tagName === 'SPAN' && node.style.backgroundColor) newFont.highlight = node.style.backgroundColor;
+          for(let child of node.childNodes) drawNode(child, newFont);
+        }
+      }
+      for (let n of tempDiv.childNodes) drawNode(n, {bold:false,italic:false,underline:false,highlight:null,color:act.color});
       ctx.restore();
     }
 
@@ -531,7 +584,7 @@
           size: brushSize
         });
         drawing = false; points = [];
-        saveHistory();
+        drawAll();
       } else if (drawing && tool==='shape' && shapeType) {
         const {x, y} = getCanvasCoords(e.clientX, e.clientY);
         actions.push({
@@ -543,9 +596,8 @@
           size: brushSize
         });
         drawing = false; points = [];
-        saveHistory();
+        drawAll();
       }
-      drawAll();
     };
     canvas.onmouseleave = e => { drawing = false; isPanning = false; };
 
@@ -598,7 +650,7 @@
           size: brushSize
         });
         drawing = false; points = [];
-        saveHistory();
+        drawAll();
       } else if (drawing && tool==='shape' && shapeType) {
         const {x, y} = points[1] || points[0];
         actions.push({
@@ -610,9 +662,8 @@
           size: brushSize
         });
         drawing = false; points = [];
-        saveHistory();
+        drawAll();
       }
-      drawAll();
     });
 
     // --- Mouse Wheel for Zoom ---
@@ -622,42 +673,61 @@
       setZoom(zoom * factor, e.offsetX, e.offsetY);
     };
 
-    // --- Text Tool ---
+    // --- Text Tool with Modal Rich Editor ---
     canvas.onclick = function(e) {
       if (!textToolActive) return;
       if (isOverStickyOrImage(e)) return;
       const {x, y} = getCanvasCoords(e.clientX, e.clientY);
-      let t = prompt('Enter text:');
-      if (t && t.trim()) {
-        actions.push({
-          type: 'text',
-          text: t.trim(),
-          x, y,
-          color: brushColor,
-          size: textSize
-        });
-        saveHistory();
-        drawAll();
-      }
+      showTextEditor(x, y);
     };
+
+    function showTextEditor(x, y) {
+      const modal = document.getElementById('text-editor-modal');
+      const editor = document.getElementById('modal-editor');
+      modal.style.display = '';
+      editor.innerHTML = '';
+      editor.focus();
+
+      // Modal formatting buttons
+      document.getElementById('modal-bold').onclick = () => document.execCommand('bold');
+      document.getElementById('modal-italic').onclick = () => document.execCommand('italic');
+      document.getElementById('modal-underline').onclick = () => document.execCommand('underline');
+      document.getElementById('modal-highlight').onclick = () => document.execCommand('hiliteColor', false, 'yellow');
+
+      document.getElementById('modal-ok').onclick = () => {
+        const html = editor.innerHTML;
+        if (html.trim()) {
+          actions.push({
+            type: 'text',
+            text: html,
+            x, y,
+            color: brushColor,
+            size: textSize
+          });
+          drawAll();
+        }
+        modal.style.display = 'none';
+      };
+      document.getElementById('modal-cancel').onclick = () => {
+        modal.style.display = 'none';
+      };
+    }
 
     // --- Undo / Redo ---
     function undo() {
       if (actions.length > 0) {
         redoStack.push(actions.pop());
         drawAll();
-        saveHistory();
       }
     }
     function redo() {
       if (redoStack.length > 0) {
         actions.push(redoStack.pop());
         drawAll();
-        saveHistory();
       }
     }
 
-    // --- Sticky Notes ---
+    // --- Sticky Notes with Rich Text ---
     function createStickyNote(x, y) {
       let note = document.createElement('div');
       note.className = "sticky-note";
@@ -668,14 +738,20 @@
       note.style.height = '110px';
       note.innerHTML = `
         <button class="note-delete" title="Delete">×</button>
-        <textarea>Sticky note...</textarea>
+        <div class="sticky-toolbar">
+          <button class="sticky-bold"><b>B</b></button>
+          <button class="sticky-italic"><i>I</i></button>
+          <button class="sticky-underline"><u>U</u></button>
+          <button class="sticky-highlight" style="background:yellow;">H</button>
+        </div>
+        <div class="sticky-content" contenteditable="true">Sticky note...</div>
         <input type="color" class="note-color" value="#fffbcc" title="Change color">
       `;
       container.appendChild(note);
 
       let offsetX, offsetY, dragging = false;
       note.onmousedown = function(e) {
-        if (e.target.classList.contains('note-delete')) return;
+        if (e.target.classList.contains('note-delete') || e.target.classList.contains('sticky-bold') || e.target.classList.contains('sticky-italic') || e.target.classList.contains('sticky-underline') || e.target.classList.contains('sticky-highlight')) return;
         dragging = true;
         offsetX = e.offsetX;
         offsetY = e.offsetY;
@@ -698,7 +774,12 @@
       note.querySelector('.note-color').oninput = function(e) {
         note.style.background = e.target.value;
       };
-      // Save to stickyNotes array for board history (position, color, text)
+      // Formatting buttons
+      const contentDiv = note.querySelector('.sticky-content');
+      note.querySelector('.sticky-bold').onclick = () => document.execCommand('bold', false, null);
+      note.querySelector('.sticky-italic').onclick = () => document.execCommand('italic', false, null);
+      note.querySelector('.sticky-underline').onclick = () => document.execCommand('underline', false, null);
+      note.querySelector('.sticky-highlight').onclick = () => document.execCommand('hiliteColor', false, 'yellow');
       stickyNotes.push(note);
       updateStickyAndImages();
     }
@@ -706,8 +787,6 @@
     function updateStickyAndImages() {
       // Reposition sticky notes and images to stay in view with pan/zoom.
       for (let note of stickyNotes) {
-        let left = parseFloat(note.style.left) || 0;
-        let top = parseFloat(note.style.top) || 0;
         note.style.transform = `scale(${zoom})`;
       }
       for (let img of images) {
@@ -783,7 +862,6 @@
           src: url,
           img: img
         });
-        saveHistory();
         drawAll();
       };
       img.src = url;
@@ -805,41 +883,6 @@
         for (let img of images) img.style.display = '';
         drawAll();
       }, 100);
-    }
-
-    // --- Board History ---
-    let boardHistory = [], historyPointer = -1;
-    function saveHistory() {
-      // Save every 2 actions, or on undo/redo
-      if (boardHistory.length>0 && actions.length === boardHistory[boardHistory.length-1].actionsLen) return;
-      let snapshot = {
-        actions: JSON.stringify(actions),
-        actionsLen: actions.length,
-        time: new Date().toLocaleTimeString()
-      };
-      boardHistory = boardHistory.slice(0, historyPointer+1);
-      boardHistory.push(snapshot);
-      historyPointer = boardHistory.length-1;
-      updateHistoryList();
-    }
-    function updateHistoryList() {
-      let hist = document.getElementById('history-list');
-      hist.innerHTML = '';
-      boardHistory.forEach((h, i) => {
-        let div = document.createElement('div');
-        div.className = 'history-item';
-        div.textContent = `Step ${i+1} @ ${h.time}`;
-        div.onclick = ()=>{ loadHistory(i); };
-        hist.appendChild(div);
-      });
-      hist.scrollTop = hist.scrollHeight;
-    }
-    function loadHistory(idx) {
-      if (idx<0 || idx>=boardHistory.length) return;
-      let h = boardHistory[idx];
-      actions = JSON.parse(h.actions);
-      historyPointer = idx;
-      drawAll();
     }
 
     // --- Chat/Comment Panel ---
@@ -864,7 +907,6 @@
     function init() {
       setTool('pen');
       drawAll();
-      saveHistory();
     }
     init();
 
@@ -880,6 +922,15 @@
       else if (e.key==='s' && e.ctrlKey) { exportAsImage(); e.preventDefault(); }
       else if (e.key==='+') { setZoom(zoom*1.15, CANVAS_W/2, CANVAS_H/2); }
       else if (e.key==='-') { setZoom(zoom/1.15, CANVAS_W/2, CANVAS_H/2); }
+      else if (e.key === 'Delete') {
+        // Delete all notes, images, canvas actions
+        stickyNotes.forEach(note => note.remove());
+        images.forEach(img => img.remove());
+        stickyNotes = [];
+        images = [];
+        actions = [];
+        drawAll();
+      }
     });
 
     // --- Responsive ---
