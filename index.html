@@ -2,21 +2,122 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Advanced Text Whiteboard Editor</title>
+  <title>Advanced Text & Drawing Whiteboard Editor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; overflow: hidden; }
-    #toolbar { position: fixed; top: 0; left: 0; right: 0; height: auto; background: #fff; border-bottom: 1px solid #ddd; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 5px 10px; box-sizing: border-box; overflow-x: auto;}
-    #toolbar button, #toolbar label, #toolbar select, #toolbar input[type="number"], #toolbar input[type="color"] { margin-right: 6px; }
-    #editor-container { position: absolute; left: 0; top: 70px; bottom: 0; right: 0; overflow: hidden; background: #eaeaea; display: flex; justify-content: center; align-items: flex-start; }
-    #text-editor { width: 90vw; height: 80vh; margin: 32px auto; background: #fff; border: 1.5px solid #bbb; border-radius: 8px; box-shadow: 0 0 6px #bbb; font-size: 20px; padding: 18px; resize: none; outline: none; overflow-y: auto; color: #222; }
-    #toolbar button { font-size: 16px; background: #fafafa; color: #222; border: 1px solid #bbb; border-radius: 4px; padding: 5px 12px; cursor: pointer; }
-    #toolbar button:active { background: #e3f2fd; }
-    #statusbar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ddd; padding: 4px 16px; font-size: 14px; color: #444; z-index: 15; text-align: right; }
-    @media (max-width: 700px) { #text-editor { width: 96vw; height: 65vh; } }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      overflow: hidden;
+    }
+    #toolbar, #draw-toolbar {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 5px 10px;
+      box-sizing: border-box;
+      overflow-x: auto;
+    }
+    #toolbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: auto;
+    }
+    #draw-toolbar {
+      position: fixed;
+      top: 55px; left: 0; right: 0;
+      height: auto;
+      border-top: 0;
+      border-bottom: 1px solid #ddd;
+      display: none;
+      z-index: 13;
+      background: #f9f9f9;
+      padding: 5px 10px;
+    }
+    #toolbar button, #toolbar label, #toolbar select, #toolbar input[type="number"], #toolbar input[type="color"],
+    #draw-toolbar button, #draw-toolbar label, #draw-toolbar input[type="range"], #draw-toolbar input[type="color"] {
+      margin-right: 6px;
+    }
+    #editor-container {
+      position: absolute;
+      left: 0;
+      top: 55px;
+      bottom: 0;
+      right: 0;
+      overflow: hidden;
+      background: #eaeaea;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    #text-draw-stack {
+      position: relative;
+      width: 90vw;
+      max-width: 1200px;
+      height: 80vh;
+      margin: 32px auto;
+      background: #fff;
+      border: 1.5px solid #bbb;
+      border-radius: 8px;
+      box-shadow: 0 0 6px #bbb;
+      overflow: visible;
+      min-height: 300px;
+    }
+    #text-editor {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      font-size: 20px;
+      padding: 18px;
+      box-sizing: border-box;
+      resize: none;
+      outline: none;
+      overflow-y: auto;
+      color: #222;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      border-radius: 8px;
+      min-height: 260px;
+    }
+    #drawing-canvas {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%;
+      z-index: 3;
+      display: none;
+      border-radius: 8px;
+      pointer-events: none;
+      background: transparent;
+    }
+    #drawing-canvas.active { display: block; pointer-events: all; }
+    #statusbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-top: 1px solid #ddd;
+      padding: 4px 16px;
+      font-size: 14px;
+      color: #444;
+      z-index: 15;
+      text-align: right;
+    }
+    @media (max-width: 700px) {
+      #text-draw-stack { width: 96vw; height: 65vh; }
+    }
   </style>
 </head>
 <body>
+  <!-- Main Toolbar -->
   <div id="toolbar">
     <button id="undo-btn" title="Undo (Ctrl+Z)">⎌</button>
     <button id="redo-btn" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">↻</button>
@@ -42,8 +143,9 @@
     <button id="sub-btn" title="Subscript">x<sub>2</sub></button>
     <button id="color-btn" title="Text Color"><input type="color" id="color-picker" style="width:22px;height:22px;padding:0;border:none;"></button>
     <button id="bgcolor-btn" title="Highlight Color"><input type="color" id="bgcolor-picker" style="width:22px;height:22px;padding:0;border:none;"></button>
-    <button id="highlight-btn" title="Highlight Yellow (Ctrl+Shift+H)">🖍️</button>
-    <button id="huge-btn" title="Huge Size (Ctrl+Shift+L)">A+</button>
+    <button id="highlight-btn" title="Highlight (Ctrl+H)">🖍️</button>
+    <button id="huge-btn" title="Large (Ctrl+L)">A+</button>
+    <button id="draw-toggle-btn" title="Toggle Drawing (Ctrl+D)">✏️ Drawing</button>
     <button id="left-btn" title="Align Left">⬅️</button>
     <button id="center-btn" title="Align Center">⬇️</button>
     <button id="right-btn" title="Align Right">➡️</button>
@@ -58,254 +160,401 @@
     <button id="print-btn" title="Print">🖨️</button>
     <button id="save-btn" title="Save as TXT">💾</button>
     <button id="save-html-btn" title="Save as HTML">🌐</button>
+    <button id="save-all-btn" title="Save to Local">💾 All</button>
+    <button id="load-all-btn" title="Load from Local">📂 All</button>
   </div>
+
+  <!-- Drawing Toolbar -->
+  <div id="draw-toolbar">
+    <label>Tool:
+      <select id="draw-tool">
+        <option value="pen">Pen</option>
+        <option value="eraser">Eraser</option>
+      </select>
+    </label>
+    <label>Color: <input type="color" id="draw-color" value="#222222"></label>
+    <label>Width: <input type="range" id="draw-width" min="1" max="24" value="4" style="vertical-align:middle;"></label>
+    <button id="draw-clear" title="Clear Drawing">🧹 Clear</button>
+    <button id="draw-save" title="Download Drawing">💾 Canvas</button>
+  </div>
+
+  <!-- Editor & Canvas -->
   <div id="editor-container">
-    <div id="text-editor" contenteditable="true" spellcheck="true"></div>
+    <div id="text-draw-stack">
+      <div id="text-editor" contenteditable="true" spellcheck="true"></div>
+      <canvas id="drawing-canvas"></canvas>
+    </div>
   </div>
   <div id="statusbar">Words: <span id="word-count">0</span> | Characters: <span id="char-count">0</span></div>
- <script>
-  const editor = document.getElementById('text-editor');
-  const undoBtn = document.getElementById('undo-btn');
-  const redoBtn = document.getElementById('redo-btn');
-  const clearBtn = document.getElementById('clear-btn');
-  const copyBtn = document.getElementById('copy-btn');
-  const fontSizeInput = document.getElementById('font-size');
-  const fontFamilyInput = document.getElementById('font-family');
-  const boldBtn = document.getElementById('bold-btn');
-  const italicBtn = document.getElementById('italic-btn');
-  const underlineBtn = document.getElementById('underline-btn');
-  const strikeBtn = document.getElementById('strike-btn');
-  const supBtn = document.getElementById('sup-btn');
-  const subBtn = document.getElementById('sub-btn');
-  const colorPicker = document.getElementById('color-picker');
-  const bgcolorPicker = document.getElementById('bgcolor-picker');
-  const colorBtn = document.getElementById('color-btn');
-  const bgcolorBtn = document.getElementById('bgcolor-btn');
-  const highlightBtn = document.getElementById('highlight-btn');
-  const hugeBtn = document.getElementById('huge-btn');
-  const leftBtn = document.getElementById('left-btn');
-  const centerBtn = document.getElementById('center-btn');
-  const rightBtn = document.getElementById('right-btn');
-  const justifyBtn = document.getElementById('justify-btn');
-  const olBtn = document.getElementById('ol-btn');
-  const ulBtn = document.getElementById('ul-btn');
-  const outdentBtn = document.getElementById('outdent-btn');
-  const indentBtn = document.getElementById('indent-btn');
-  const linkBtn = document.getElementById('link-btn');
-  const imageBtn = document.getElementById('image-btn');
-  const saveBtn = document.getElementById('save-btn');
-  const saveHtmlBtn = document.getElementById('save-html-btn');
-  const printBtn = document.getElementById('print-btn');
-  const findBtn = document.getElementById('find-btn');
-  const wordCount = document.getElementById('word-count');
-  const charCount = document.getElementById('char-count');
+  <script>
+    // -------- Text Editor Logic --------
+    const editor = document.getElementById('text-editor');
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const copyBtn = document.getElementById('copy-btn');
+    const fontSizeInput = document.getElementById('font-size');
+    const fontFamilyInput = document.getElementById('font-family');
+    const boldBtn = document.getElementById('bold-btn');
+    const italicBtn = document.getElementById('italic-btn');
+    const underlineBtn = document.getElementById('underline-btn');
+    const strikeBtn = document.getElementById('strike-btn');
+    const supBtn = document.getElementById('sup-btn');
+    const subBtn = document.getElementById('sub-btn');
+    const colorPicker = document.getElementById('color-picker');
+    const bgcolorPicker = document.getElementById('bgcolor-picker');
+    const highlightBtn = document.getElementById('highlight-btn');
+    const hugeBtn = document.getElementById('huge-btn');
+    const leftBtn = document.getElementById('left-btn');
+    const centerBtn = document.getElementById('center-btn');
+    const rightBtn = document.getElementById('right-btn');
+    const justifyBtn = document.getElementById('justify-btn');
+    const olBtn = document.getElementById('ol-btn');
+    const ulBtn = document.getElementById('ul-btn');
+    const outdentBtn = document.getElementById('outdent-btn');
+    const indentBtn = document.getElementById('indent-btn');
+    const linkBtn = document.getElementById('link-btn');
+    const imageBtn = document.getElementById('image-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const saveHtmlBtn = document.getElementById('save-html-btn');
+    const printBtn = document.getElementById('print-btn');
+    const findBtn = document.getElementById('find-btn');
+    const wordCount = document.getElementById('word-count');
+    const charCount = document.getElementById('char-count');
+    const drawToggleBtn = document.getElementById('draw-toggle-btn');
+    const saveAllBtn = document.getElementById('save-all-btn');
+    const loadAllBtn = document.getElementById('load-all-btn');
 
-  // Undo/Redo with execCommand (works in most browsers)
-  undoBtn.onclick = () => document.execCommand('undo');
-  redoBtn.onclick = () => document.execCommand('redo');
-  // Also allow Ctrl+Y and Ctrl+Shift+Z for redo
-  document.addEventListener('keydown', function(e){
-    if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
-      e.preventDefault();
-      redoBtn.click();
+    // Undo/Redo stack for text (granular)
+    let undoStack = [];
+    let redoStack = [];
+    let isRestoring = false;
+    function saveState() {
+      if (isRestoring) return;
+      const currentHtml = editor.innerHTML;
+      if (undoStack.length === 0 || currentHtml !== undoStack[undoStack.length - 1]) {
+        undoStack.push(currentHtml);
+        if (undoStack.length > 200) undoStack.shift();
+      }
+      redoStack = [];
     }
-  });
+    function restoreState(stackFrom, stackTo) {
+      if (stackFrom.length > 1) {
+        isRestoring = true;
+        stackTo.push(stackFrom.pop());
+        editor.innerHTML = stackFrom[stackFrom.length - 1];
+        placeCaretAtEnd(editor);
+        isRestoring = false;
+        updateCounts();
+      }
+    }
+    function placeCaretAtEnd(el) {
+      el.focus();
+      if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+    // Save initial state
+    saveState();
+    editor.addEventListener('input', function() { saveState(); updateCounts(); });
 
-  // Clear/Delete
-  clearBtn.onclick = () => {
-    if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
-    updateCounts();
-  };
+    undoBtn.onclick = () => restoreState(undoStack, redoStack);
+    redoBtn.onclick = () => restoreState(redoStack, undoStack);
 
-  // Copy All
-  copyBtn.onclick = () => {
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(editor);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('copy');
-    selection.removeAllRanges();
-  };
-
-  // Font size
-  fontSizeInput.oninput = () => {
-    document.execCommand('fontSize', false, "7");
-    Array.from(editor.getElementsByTagName('font')).forEach(f => f.size = "");
-    editor.focus();
-    editor.style.fontSize = fontSizeInput.value + "px";
-  };
-
-  // Font family
-  fontFamilyInput.onchange = () => {
-    document.execCommand('fontName', false, fontFamilyInput.value);
-    editor.focus();
-  };
-
-  // Text formatting
-  boldBtn.onclick = () => document.execCommand('bold');
-  italicBtn.onclick = () => document.execCommand('italic');
-  underlineBtn.onclick = () => document.execCommand('underline');
-  strikeBtn.onclick = () => document.execCommand('strikeThrough');
-  supBtn.onclick = () => document.execCommand('superscript');
-  subBtn.onclick = () => document.execCommand('subscript');
-
-  // Color pickers
-  colorPicker.oninput = () => document.execCommand('foreColor', false, colorPicker.value);
-  bgcolorPicker.oninput = () => document.execCommand('hiliteColor', false, bgcolorPicker.value);
-
-  // Highlight (yellow)
-  function highlightSelection() {
-    document.execCommand('hiliteColor', false, '#ffff00');
-    editor.focus();
-  }
-  highlightBtn.onclick = highlightSelection;
-
-  // Huge size
-  function hugeSelection() {
-    document.execCommand('fontSize', false, 7);
-    // The execCommand('fontSize') inserts <font size="7">, but to get the correct visual, override via CSS
-    Array.from(editor.getElementsByTagName('font')).forEach(f => {
-      if (f.size === "7") {
-        f.removeAttribute('size');
-        f.style.fontSize = "48px";
+    clearBtn.onclick = () => {
+      if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
+      saveState(); updateCounts();
+    };
+    copyBtn.onclick = () => {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.execCommand('copy');
+      selection.removeAllRanges();
+      editor.focus();
+    };
+    fontSizeInput.oninput = () => {
+      document.execCommand('fontSize', false, "7");
+      Array.from(editor.getElementsByTagName('font')).forEach(f => f.size = "");
+      editor.style.fontSize = fontSizeInput.value + "px";
+      saveState();
+    };
+    fontFamilyInput.onchange = () => {
+      document.execCommand('fontName', false, fontFamilyInput.value);
+      editor.style.fontFamily = fontFamilyInput.value;
+      saveState();
+    };
+    boldBtn.onclick = () => { document.execCommand('bold'); saveState(); };
+    italicBtn.onclick = () => { document.execCommand('italic'); saveState(); };
+    underlineBtn.onclick = () => { document.execCommand('underline'); saveState(); };
+    strikeBtn.onclick = () => { document.execCommand('strikeThrough'); saveState(); };
+    supBtn.onclick = () => { document.execCommand('superscript'); saveState(); };
+    subBtn.onclick = () => { document.execCommand('subscript'); saveState(); };
+    colorPicker.oninput = () => { document.execCommand('foreColor', false, colorPicker.value); saveState(); };
+    bgcolorPicker.oninput = () => { document.execCommand('hiliteColor', false, bgcolorPicker.value); saveState(); };
+    function highlightSelection() { document.execCommand('hiliteColor', false, '#ffff00'); saveState(); }
+    highlightBtn.onclick = highlightSelection;
+    function hugeSelection() {
+      document.execCommand('fontSize', false, 7);
+      Array.from(editor.getElementsByTagName('font')).forEach(f => {
+        if (f.size === "7") {
+          f.removeAttribute('size');
+          f.style.fontSize = "48px";
+        }
+      });
+      saveState();
+    }
+    hugeBtn.onclick = hugeSelection;
+    leftBtn.onclick = () => { document.execCommand('justifyLeft'); saveState(); };
+    centerBtn.onclick = () => { document.execCommand('justifyCenter'); saveState(); };
+    rightBtn.onclick = () => { document.execCommand('justifyRight'); saveState(); };
+    justifyBtn.onclick = () => { document.execCommand('justifyFull'); saveState(); };
+    olBtn.onclick = () => { document.execCommand('insertOrderedList'); saveState(); };
+    ulBtn.onclick = () => { document.execCommand('insertUnorderedList'); saveState(); };
+    indentBtn.onclick = () => { document.execCommand('indent'); saveState(); };
+    outdentBtn.onclick = () => { document.execCommand('outdent'); saveState(); };
+    linkBtn.onclick = () => {
+      const url = prompt("Enter URL for link:");
+      if (url) document.execCommand('createLink', false, url);
+      saveState();
+    };
+    imageBtn.onclick = () => {
+      const url = prompt("Enter image URL:");
+      if (url) document.execCommand('insertImage', false, url);
+      saveState();
+    };
+    printBtn.onclick = () => {
+      let win = window.open('', '_blank');
+      win.document.write('<html><head><title>Print Text</title></head><body>' + editor.innerHTML + '</body></html>');
+      win.document.close();
+      win.print();
+    };
+    saveBtn.onclick = () => {
+      const text = editor.innerText;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.download = 'whiteboard.txt';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    };
+    saveHtmlBtn.onclick = () => {
+      const html = editor.innerHTML;
+      const blob = new Blob([html], {type: 'text/html'});
+      const link = document.createElement('a');
+      link.download = 'whiteboard.html';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    };
+    findBtn.onclick = () => {
+      const findText = prompt("Find what?");
+      if (findText) {
+        const replaceText = prompt("Replace with (leave blank to just highlight)?");
+        let html = editor.innerHTML;
+        const regex = new RegExp(findText, 'gi');
+        if (replaceText !== null && replaceText !== undefined) {
+          html = html.replace(regex, match => `<mark>${replaceText || match}</mark>`);
+          editor.innerHTML = html;
+        }
+        saveState();
+      }
+    };
+    editor.addEventListener('keydown', function(e){
+      // Drawing toggle: Ctrl+D
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); drawToggleBtn.click();
+      }
+      // Highlight: Ctrl+H
+      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault(); highlightBtn.click();
+      }
+      // Huge size: Ctrl+L
+      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault(); hugeBtn.click();
+      }
+      // Bold: Ctrl+B
+      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault(); boldBtn.click();
+      }
+      // Undo: Ctrl+Z
+      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault(); undoBtn.click();
+      }
+      // Redo: Ctrl+Y or Ctrl+Shift+Z
+      else if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault(); redoBtn.click();
+      }
+      // Save: Ctrl+S
+      else if (e.ctrlKey && e.key.toLowerCase() === 's') {
+        e.preventDefault(); saveBtn.click();
+      }
+      // Print: Ctrl+P
+      else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault(); printBtn.click();
+      }
+      // Delete key clears all (legacy)
+      else if (e.key === 'Delete' && (editor.innerText.length > 0)) {
+        if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
+        e.preventDefault(); saveState(); updateCounts();
       }
     });
+
+    function updateCounts() {
+      let text = editor.innerText;
+      wordCount.textContent = (text.trim() ? text.trim().split(/\s+/).length : 0);
+      charCount.textContent = text.replace(/\s/g, '').length;
+    }
+    editor.addEventListener('input', updateCounts);
+
+    // Initial states
+    editor.style.fontSize = fontSizeInput.value + "px";
+    editor.style.fontFamily = fontFamilyInput.value;
     editor.focus();
-  }
-  hugeBtn.onclick = hugeSelection;
+    updateCounts();
 
-  // Alignment
-  leftBtn.onclick = () => document.execCommand('justifyLeft');
-  centerBtn.onclick = () => document.execCommand('justifyCenter');
-  rightBtn.onclick = () => document.execCommand('justifyRight');
-  justifyBtn.onclick = () => document.execCommand('justifyFull');
+    // -------- Drawing Tools Logic --------
+    const drawToolbar = document.getElementById('draw-toolbar');
+    const drawingCanvas = document.getElementById('drawing-canvas');
+    const drawToggleBtn = document.getElementById('draw-toggle-btn');
+    const drawTool = document.getElementById('draw-tool');
+    const drawColor = document.getElementById('draw-color');
+    const drawWidth = document.getElementById('draw-width');
+    const drawClear = document.getElementById('draw-clear');
+    const drawSave = document.getElementById('draw-save');
 
-  // Lists
-  olBtn.onclick = () => document.execCommand('insertOrderedList');
-  ulBtn.onclick = () => document.execCommand('insertUnorderedList');
+    let drawing = false, ctx, lastX, lastY;
 
-  // Indent/Outdent
-  indentBtn.onclick = () => document.execCommand('indent');
-  outdentBtn.onclick = () => document.execCommand('outdent');
-
-  // Insert Link
-  linkBtn.onclick = () => {
-    const url = prompt("Enter URL for link:");
-    if (url) document.execCommand('createLink', false, url);
-  };
-
-  // Insert Image
-  imageBtn.onclick = () => {
-    const url = prompt("Enter image URL:");
-    if (url) document.execCommand('insertImage', false, url);
-  };
-
-  // Print
-  printBtn.onclick = () => {
-    let win = window.open('', '_blank');
-    win.document.write('<html><head><title>Print Text</title></head><body>' + editor.innerHTML + '</body></html>');
-    win.document.close();
-    win.print();
-  };
-
-  // Save as TXT
-  saveBtn.onclick = () => {
-    const text = editor.innerText;
-    const blob = new Blob([text], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.download = 'whiteboard.txt';
-    link.href = URL.createObjectURL(blob);
-    link.click();
-  };
-
-  // Save as HTML
-  saveHtmlBtn.onclick = () => {
-    const html = editor.innerHTML;
-    const blob = new Blob([html], {type: 'text/html'});
-    const link = document.createElement('a');
-    link.download = 'whiteboard.html';
-    link.href = URL.createObjectURL(blob);
-    link.click();
-  };
-
-  // Find and Replace
-  findBtn.onclick = () => {
-    const findText = prompt("Find what?");
-    if (findText) {
-      const replaceText = prompt("Replace with (leave blank to just highlight)?");
-      let html = editor.innerHTML;
-      const regex = new RegExp(findText, 'gi');
-      if (replaceText !== null && replaceText !== undefined) {
-        html = html.replace(regex, match => `<mark>${replaceText || match}</mark>`);
-        editor.innerHTML = html;
+    function resizeCanvas() {
+      // Get the same size as text-editor div
+      drawingCanvas.width = drawingCanvas.offsetWidth;
+      drawingCanvas.height = drawingCanvas.offsetHeight;
+      // Redraw if there is saved image
+      restoreCanvas();
+    }
+    function enableCanvasEvents(enable) {
+      drawingCanvas.classList.toggle('active', enable);
+      if (enable) {
+        drawToolbar.style.display = "flex";
+        drawingCanvas.style.pointerEvents = "all";
+      } else {
+        drawToolbar.style.display = "none";
+        drawingCanvas.style.pointerEvents = "none";
       }
     }
-  };
 
-  // Keyboard shortcuts
-  editor.addEventListener('keydown', function(e){
-    // Delete all: Ctrl+Shift+D
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      clearBtn.click();
+    // Drawing functions
+    function startDraw(e) {
+      drawing = true;
+      const rect = drawingCanvas.getBoundingClientRect();
+      lastX = ((e.touches ? e.touches[0].clientX : e.clientX) - rect.left);
+      lastY = ((e.touches ? e.touches[0].clientY : e.clientY) - rect.top);
     }
-    // Highlight: Ctrl+H
-    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'h') {
-      e.preventDefault();
-      highlightBtn.click();
+    function draw(e) {
+      if (!drawing) return;
+      const rect = drawingCanvas.getBoundingClientRect();
+      const x = ((e.touches ? e.touches[0].clientX : e.clientX) - rect.left);
+      const y = ((e.touches ? e.touches[0].clientY : e.clientY) - rect.top);
+      ctx.strokeStyle = drawTool.value === 'eraser' ? '#fff' : drawColor.value;
+      ctx.lineWidth = drawWidth.value;
+      ctx.lineCap = 'round';
+      ctx.globalCompositeOperation = drawTool.value === 'eraser' ? 'destination-out' : 'source-over';
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      lastX = x; lastY = y;
+      saveCanvas();
     }
-    // Huge size: Ctrl+L
-    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'l') {
-      e.preventDefault();
-      hugeBtn.click();
+    function endDraw() { drawing = false; saveCanvas(); }
+
+    // LocalStorage: Save/Restore
+    function saveAllToLocal() {
+      localStorage.setItem('whiteboard_text', editor.innerHTML);
+      localStorage.setItem('whiteboard_canvas', drawingCanvas.toDataURL());
     }
-    // Bold: Ctrl+B
-    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
-      e.preventDefault();
-      boldBtn.click();
-    }
-    // Undo: Ctrl+Z
-    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      undoBtn.click();
-    }
-    // Redo: Ctrl+Y or Ctrl+Shift+Z (handled above globally too)
-    else if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
-      e.preventDefault();
-      redoBtn.click();
-    }
-    // Save: Ctrl+S
-    else if (e.ctrlKey && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      saveBtn.click();
-    }
-    // Print: Ctrl+P
-    else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
-      e.preventDefault();
-      printBtn.click();
-    }
-    // Delete key clears all (legacy)
-    else if (e.key === 'Delete' && (editor.innerText.length > 0)) {
-      if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
-      e.preventDefault();
+    function loadAllFromLocal() {
+      if (localStorage.getItem('whiteboard_text'))
+        editor.innerHTML = localStorage.getItem('whiteboard_text');
+      restoreCanvas();
+      saveState();
       updateCounts();
     }
-  });
+    function saveCanvas() {
+      // Save only if drawing mode is enabled (avoid blank saves on resize)
+      if (drawingCanvas.classList.contains('active'))
+        localStorage.setItem('whiteboard_canvas', drawingCanvas.toDataURL());
+    }
+    function restoreCanvas() {
+      // Clear
+      ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+      let data = localStorage.getItem('whiteboard_canvas');
+      if (data) {
+        let img = new window.Image();
+        img.onload = function() {
+          ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+          ctx.drawImage(img, 0, 0, drawingCanvas.width, drawingCanvas.height);
+        };
+        img.src = data;
+      }
+    }
+    // Drawing toolbar events
+    drawToggleBtn.onclick = function() {
+      const enabled = !drawingCanvas.classList.contains('active');
+      enableCanvasEvents(enabled);
+      if (enabled) {
+        drawingCanvas.width = drawingCanvas.offsetWidth;
+        drawingCanvas.height = drawingCanvas.offsetHeight;
+        restoreCanvas();
+      }
+    };
+    drawTool.onchange = () => {};
+    drawColor.oninput = () => {};
+    drawWidth.oninput = () => {};
+    drawClear.onclick = () => {
+      ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+      saveCanvas();
+    };
+    drawSave.onclick = () => {
+      let link = document.createElement('a');
+      link.download = 'whiteboard-drawing.png';
+      link.href = drawingCanvas.toDataURL();
+      link.click();
+    };
+    saveAllBtn.onclick = saveAllToLocal;
+    loadAllBtn.onclick = loadAllFromLocal;
 
-  // Word/Character Count
-  function updateCounts() {
-    let text = editor.innerText;
-    wordCount.textContent = (text.trim() ? text.trim().split(/\s+/).length : 0);
-    charCount.textContent = text.replace(/\s/g, '').length;
-  }
-  editor.addEventListener('input', updateCounts);
+    // Initialize canvas
+    function initCanvas() {
+      ctx = drawingCanvas.getContext('2d');
+      resizeCanvas();
+      restoreCanvas();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    // Mouse/Touch drawing events
+    drawingCanvas.addEventListener('mousedown', startDraw);
+    drawingCanvas.addEventListener('mousemove', draw);
+    drawingCanvas.addEventListener('mouseup', endDraw);
+    drawingCanvas.addEventListener('mouseleave', endDraw);
+    drawingCanvas.addEventListener('touchstart', startDraw, { passive: false });
+    drawingCanvas.addEventListener('touchmove', draw, { passive: false });
+    drawingCanvas.addEventListener('touchend', endDraw);
 
-  // Initial states
-  editor.style.fontSize = fontSizeInput.value + "px";
-  editor.style.fontFamily = fontFamilyInput.value;
-  editor.focus();
-  updateCounts();
-</script>
+    // Save text and drawing automatically
+    editor.addEventListener('input', saveAllToLocal);
+
+    // Load from localStorage on startup
+    window.onload = function() {
+      initCanvas();
+      if (localStorage.getItem('whiteboard_text')) editor.innerHTML = localStorage.getItem('whiteboard_text');
+      restoreCanvas();
+      updateCounts();
+    };
+  </script>
 </body>
 </html>
