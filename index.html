@@ -63,248 +63,249 @@
     <div id="text-editor" contenteditable="true" spellcheck="true"></div>
   </div>
   <div id="statusbar">Words: <span id="word-count">0</span> | Characters: <span id="char-count">0</span></div>
-  <script>
-    const editor = document.getElementById('text-editor');
-    const undoBtn = document.getElementById('undo-btn');
-    const redoBtn = document.getElementById('redo-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    const copyBtn = document.getElementById('copy-btn');
-    const fontSizeInput = document.getElementById('font-size');
-    const fontFamilyInput = document.getElementById('font-family');
-    const boldBtn = document.getElementById('bold-btn');
-    const italicBtn = document.getElementById('italic-btn');
-    const underlineBtn = document.getElementById('underline-btn');
-    const strikeBtn = document.getElementById('strike-btn');
-    const supBtn = document.getElementById('sup-btn');
-    const subBtn = document.getElementById('sub-btn');
-    const colorPicker = document.getElementById('color-picker');
-    const bgcolorPicker = document.getElementById('bgcolor-picker');
-    const colorBtn = document.getElementById('color-btn');
-    const bgcolorBtn = document.getElementById('bgcolor-btn');
-    const highlightBtn = document.getElementById('highlight-btn');
-    const hugeBtn = document.getElementById('huge-btn');
-    const leftBtn = document.getElementById('left-btn');
-    const centerBtn = document.getElementById('center-btn');
-    const rightBtn = document.getElementById('right-btn');
-    const justifyBtn = document.getElementById('justify-btn');
-    const olBtn = document.getElementById('ol-btn');
-    const ulBtn = document.getElementById('ul-btn');
-    const outdentBtn = document.getElementById('outdent-btn');
-    const indentBtn = document.getElementById('indent-btn');
-    const linkBtn = document.getElementById('link-btn');
-    const imageBtn = document.getElementById('image-btn');
-    const saveBtn = document.getElementById('save-btn');
-    const saveHtmlBtn = document.getElementById('save-html-btn');
-    const printBtn = document.getElementById('print-btn');
-    const findBtn = document.getElementById('find-btn');
-    const wordCount = document.getElementById('word-count');
-    const charCount = document.getElementById('char-count');
+ <script>
+  const editor = document.getElementById('text-editor');
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  const clearBtn = document.getElementById('clear-btn');
+  const copyBtn = document.getElementById('copy-btn');
+  const fontSizeInput = document.getElementById('font-size');
+  const fontFamilyInput = document.getElementById('font-family');
+  const boldBtn = document.getElementById('bold-btn');
+  const italicBtn = document.getElementById('italic-btn');
+  const underlineBtn = document.getElementById('underline-btn');
+  const strikeBtn = document.getElementById('strike-btn');
+  const supBtn = document.getElementById('sup-btn');
+  const subBtn = document.getElementById('sub-btn');
+  const colorPicker = document.getElementById('color-picker');
+  const bgcolorPicker = document.getElementById('bgcolor-picker');
+  const colorBtn = document.getElementById('color-btn');
+  const bgcolorBtn = document.getElementById('bgcolor-btn');
+  const highlightBtn = document.getElementById('highlight-btn');
+  const hugeBtn = document.getElementById('huge-btn');
+  const leftBtn = document.getElementById('left-btn');
+  const centerBtn = document.getElementById('center-btn');
+  const rightBtn = document.getElementById('right-btn');
+  const justifyBtn = document.getElementById('justify-btn');
+  const olBtn = document.getElementById('ol-btn');
+  const ulBtn = document.getElementById('ul-btn');
+  const outdentBtn = document.getElementById('outdent-btn');
+  const indentBtn = document.getElementById('indent-btn');
+  const linkBtn = document.getElementById('link-btn');
+  const imageBtn = document.getElementById('image-btn');
+  const saveBtn = document.getElementById('save-btn');
+  const saveHtmlBtn = document.getElementById('save-html-btn');
+  const printBtn = document.getElementById('print-btn');
+  const findBtn = document.getElementById('find-btn');
+  const wordCount = document.getElementById('word-count');
+  const charCount = document.getElementById('char-count');
 
-    // Undo/Redo with execCommand (works in most browsers)
-    undoBtn.onclick = () => document.execCommand('undo');
-    redoBtn.onclick = () => document.execCommand('redo');
-    // Also allow Ctrl+Y and Ctrl+Shift+Z for redo
-    document.addEventListener('keydown', function(e){
-      if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
-        e.preventDefault();
-        redoBtn.click();
-      }
-    });
-
-    // Clear/Delete
-    clearBtn.onclick = () => {
-      if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
-      updateCounts();
-    };
-
-    // Copy All
-    copyBtn.onclick = () => {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(editor);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.execCommand('copy');
-      selection.removeAllRanges();
-    };
-
-    // Font size
-    fontSizeInput.oninput = () => {
-      document.execCommand('fontSize', false, "7");
-      Array.from(editor.getElementsByTagName('font')).forEach(f => f.size = "");
-      editor.focus();
-      editor.style.fontSize = fontSizeInput.value + "px";
-    };
-
-    // Font family
-    fontFamilyInput.onchange = () => {
-      document.execCommand('fontName', false, fontFamilyInput.value);
-      editor.focus();
-    };
-
-    // Text formatting
-    boldBtn.onclick = () => document.execCommand('bold');
-    italicBtn.onclick = () => document.execCommand('italic');
-    underlineBtn.onclick = () => document.execCommand('underline');
-    strikeBtn.onclick = () => document.execCommand('strikeThrough');
-    supBtn.onclick = () => document.execCommand('superscript');
-    subBtn.onclick = () => document.execCommand('subscript');
-
-    // Color pickers
-    colorPicker.oninput = () => document.execCommand('foreColor', false, colorPicker.value);
-    bgcolorPicker.oninput = () => document.execCommand('hiliteColor', false, bgcolorPicker.value);
-
-    // Highlight (yellow)
-    function highlightSelection() {
-      document.execCommand('hiliteColor', false, '#ffff00');
-      editor.focus();
+  // Undo/Redo with execCommand (works in most browsers)
+  undoBtn.onclick = () => document.execCommand('undo');
+  redoBtn.onclick = () => document.execCommand('redo');
+  // Also allow Ctrl+Y and Ctrl+Shift+Z for redo
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+      e.preventDefault();
+      redoBtn.click();
     }
-    highlightBtn.onclick = highlightSelection;
+  });
 
-    // Huge size
-    function hugeSelection() {
-      document.execCommand('fontSize', false, 7);
-      // The execCommand('fontSize') inserts <font size="7">, but to get the correct visual, override via CSS
-      Array.from(editor.getElementsByTagName('font')).forEach(f => {
-        if (f.size === "7") {
-          f.removeAttribute('size');
-          f.style.fontSize = "48px";
-        }
-      });
-      editor.focus();
-    }
-    hugeBtn.onclick = hugeSelection;
-
-    // Alignment
-    leftBtn.onclick = () => document.execCommand('justifyLeft');
-    centerBtn.onclick = () => document.execCommand('justifyCenter');
-    rightBtn.onclick = () => document.execCommand('justifyRight');
-    justifyBtn.onclick = () => document.execCommand('justifyFull');
-
-    // Lists
-    olBtn.onclick = () => document.execCommand('insertOrderedList');
-    ulBtn.onclick = () => document.execCommand('insertUnorderedList');
-
-    // Indent/Outdent
-    indentBtn.onclick = () => document.execCommand('indent');
-    outdentBtn.onclick = () => document.execCommand('outdent');
-
-    // Insert Link
-    linkBtn.onclick = () => {
-      const url = prompt("Enter URL for link:");
-      if (url) document.execCommand('createLink', false, url);
-    };
-
-    // Insert Image
-    imageBtn.onclick = () => {
-      const url = prompt("Enter image URL:");
-      if (url) document.execCommand('insertImage', false, url);
-    };
-
-    // Print
-    printBtn.onclick = () => {
-      let win = window.open('', '_blank');
-      win.document.write('<html><head><title>Print Text</title></head><body>' + editor.innerHTML + '</body></html>');
-      win.document.close();
-      win.print();
-    };
-
-    // Save as TXT
-    saveBtn.onclick = () => {
-      const text = editor.innerText;
-      const blob = new Blob([text], { type: 'text/plain' });
-      const link = document.createElement('a');
-      link.download = 'whiteboard.txt';
-      link.href = URL.createObjectURL(blob);
-      link.click();
-    };
-
-    // Save as HTML
-    saveHtmlBtn.onclick = () => {
-      const html = editor.innerHTML;
-      const blob = new Blob([html], {type: 'text/html'});
-      const link = document.createElement('a');
-      link.download = 'whiteboard.html';
-      link.href = URL.createObjectURL(blob);
-      link.click();
-    };
-
-    // Find and Replace
-    findBtn.onclick = () => {
-      const findText = prompt("Find what?");
-      if (findText) {
-        const replaceText = prompt("Replace with (leave blank to just highlight)?");
-        let html = editor.innerHTML;
-        const regex = new RegExp(findText, 'gi');
-        if (replaceText !== null && replaceText !== undefined) {
-          html = html.replace(regex, match => `<mark>${replaceText || match}</mark>`);
-          editor.innerHTML = html;
-        }
-      }
-    };
-
-    // Keyboard shortcuts
-    editor.addEventListener('keydown', function(e){
-      // Delete all: Ctrl+Shift+D
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        clearBtn.click();
-      }
-      // Highlight: Ctrl+Shift+H
-      else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'h') {
-        e.preventDefault();
-        highlightBtn.click();
-      }
-      // Huge size: Ctrl+Shift+L
-      else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault();
-        hugeBtn.click();
-      }
-      // Bold: Ctrl+B
-      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
-        e.preventDefault();
-        boldBtn.click();
-      }
-      // Undo: Ctrl+Z
-      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        undoBtn.click();
-      }
-      // Redo: Ctrl+Y or Ctrl+Shift+Z (handled above globally too)
-      else if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
-        e.preventDefault();
-        redoBtn.click();
-      }
-      // Save: Ctrl+S
-      else if (e.ctrlKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        saveBtn.click();
-      }
-      // Print: Ctrl+P
-      else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        printBtn.click();
-      }
-      // Delete key clears all (legacy)
-      else if (e.key === 'Delete' && (editor.innerText.length > 0)) {
-        if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
-        e.preventDefault();
-        updateCounts();
-      }
-    });
-
-    // Word/Character Count
-    function updateCounts() {
-      let text = editor.innerText;
-      wordCount.textContent = (text.trim() ? text.trim().split(/\s+/).length : 0);
-      charCount.textContent = text.replace(/\s/g, '').length;
-    }
-    editor.addEventListener('input', updateCounts);
-
-    // Initial states
-    editor.style.fontSize = fontSizeInput.value + "px";
-    editor.style.fontFamily = fontFamilyInput.value;
-    editor.focus();
+  // Clear/Delete
+  clearBtn.onclick = () => {
+    if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
     updateCounts();
-  </script>
+  };
+
+  // Copy All
+  copyBtn.onclick = () => {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand('copy');
+    selection.removeAllRanges();
+  };
+
+  // Font size
+  fontSizeInput.oninput = () => {
+    document.execCommand('fontSize', false, "7");
+    Array.from(editor.getElementsByTagName('font')).forEach(f => f.size = "");
+    editor.focus();
+    editor.style.fontSize = fontSizeInput.value + "px";
+  };
+
+  // Font family
+  fontFamilyInput.onchange = () => {
+    document.execCommand('fontName', false, fontFamilyInput.value);
+    editor.focus();
+  };
+
+  // Text formatting
+  boldBtn.onclick = () => document.execCommand('bold');
+  italicBtn.onclick = () => document.execCommand('italic');
+  underlineBtn.onclick = () => document.execCommand('underline');
+  strikeBtn.onclick = () => document.execCommand('strikeThrough');
+  supBtn.onclick = () => document.execCommand('superscript');
+  subBtn.onclick = () => document.execCommand('subscript');
+
+  // Color pickers
+  colorPicker.oninput = () => document.execCommand('foreColor', false, colorPicker.value);
+  bgcolorPicker.oninput = () => document.execCommand('hiliteColor', false, bgcolorPicker.value);
+
+  // Highlight (yellow)
+  function highlightSelection() {
+    document.execCommand('hiliteColor', false, '#ffff00');
+    editor.focus();
+  }
+  highlightBtn.onclick = highlightSelection;
+
+  // Huge size
+  function hugeSelection() {
+    document.execCommand('fontSize', false, 7);
+    // The execCommand('fontSize') inserts <font size="7">, but to get the correct visual, override via CSS
+    Array.from(editor.getElementsByTagName('font')).forEach(f => {
+      if (f.size === "7") {
+        f.removeAttribute('size');
+        f.style.fontSize = "48px";
+      }
+    });
+    editor.focus();
+  }
+  hugeBtn.onclick = hugeSelection;
+
+  // Alignment
+  leftBtn.onclick = () => document.execCommand('justifyLeft');
+  centerBtn.onclick = () => document.execCommand('justifyCenter');
+  rightBtn.onclick = () => document.execCommand('justifyRight');
+  justifyBtn.onclick = () => document.execCommand('justifyFull');
+
+  // Lists
+  olBtn.onclick = () => document.execCommand('insertOrderedList');
+  ulBtn.onclick = () => document.execCommand('insertUnorderedList');
+
+  // Indent/Outdent
+  indentBtn.onclick = () => document.execCommand('indent');
+  outdentBtn.onclick = () => document.execCommand('outdent');
+
+  // Insert Link
+  linkBtn.onclick = () => {
+    const url = prompt("Enter URL for link:");
+    if (url) document.execCommand('createLink', false, url);
+  };
+
+  // Insert Image
+  imageBtn.onclick = () => {
+    const url = prompt("Enter image URL:");
+    if (url) document.execCommand('insertImage', false, url);
+  };
+
+  // Print
+  printBtn.onclick = () => {
+    let win = window.open('', '_blank');
+    win.document.write('<html><head><title>Print Text</title></head><body>' + editor.innerHTML + '</body></html>');
+    win.document.close();
+    win.print();
+  };
+
+  // Save as TXT
+  saveBtn.onclick = () => {
+    const text = editor.innerText;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.download = 'whiteboard.txt';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  };
+
+  // Save as HTML
+  saveHtmlBtn.onclick = () => {
+    const html = editor.innerHTML;
+    const blob = new Blob([html], {type: 'text/html'});
+    const link = document.createElement('a');
+    link.download = 'whiteboard.html';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  };
+
+  // Find and Replace
+  findBtn.onclick = () => {
+    const findText = prompt("Find what?");
+    if (findText) {
+      const replaceText = prompt("Replace with (leave blank to just highlight)?");
+      let html = editor.innerHTML;
+      const regex = new RegExp(findText, 'gi');
+      if (replaceText !== null && replaceText !== undefined) {
+        html = html.replace(regex, match => `<mark>${replaceText || match}</mark>`);
+        editor.innerHTML = html;
+      }
+    }
+  };
+
+  // Keyboard shortcuts
+  editor.addEventListener('keydown', function(e){
+    // Delete all: Ctrl+Shift+D
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      clearBtn.click();
+    }
+    // Highlight: Ctrl+H
+    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      highlightBtn.click();
+    }
+    // Huge size: Ctrl+L
+    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'l') {
+      e.preventDefault();
+      hugeBtn.click();
+    }
+    // Bold: Ctrl+B
+    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      boldBtn.click();
+    }
+    // Undo: Ctrl+Z
+    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      undoBtn.click();
+    }
+    // Redo: Ctrl+Y or Ctrl+Shift+Z (handled above globally too)
+    else if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+      e.preventDefault();
+      redoBtn.click();
+    }
+    // Save: Ctrl+S
+    else if (e.ctrlKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveBtn.click();
+    }
+    // Print: Ctrl+P
+    else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      printBtn.click();
+    }
+    // Delete key clears all (legacy)
+    else if (e.key === 'Delete' && (editor.innerText.length > 0)) {
+      if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
+      e.preventDefault();
+      updateCounts();
+    }
+  });
+
+  // Word/Character Count
+  function updateCounts() {
+    let text = editor.innerText;
+    wordCount.textContent = (text.trim() ? text.trim().split(/\s+/).length : 0);
+    charCount.textContent = text.replace(/\s/g, '').length;
+  }
+  editor.addEventListener('input', updateCounts);
+
+  // Initial states
+  editor.style.fontSize = fontSizeInput.value + "px";
+  editor.style.fontFamily = fontFamilyInput.value;
+  editor.focus();
+  updateCounts();
+</script>
 </body>
 </html>
