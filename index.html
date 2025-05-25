@@ -246,6 +246,7 @@
         placeCaretAtEnd(editor);
         isRestoring = false;
         updateCounts();
+        saveAllToLocal(); // Save after each undo/redo
       }
     }
     function placeCaretAtEnd(el) {
@@ -261,14 +262,14 @@
     }
     // Save initial state
     saveState();
-    editor.addEventListener('input', function() { saveState(); updateCounts(); });
+    editor.addEventListener('input', function() { saveState(); updateCounts(); saveAllToLocal(); });
 
     undoBtn.onclick = () => restoreState(undoStack, redoStack);
     redoBtn.onclick = () => restoreState(redoStack, undoStack);
 
     clearBtn.onclick = () => {
       if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
-      saveState(); updateCounts();
+      saveState(); updateCounts(); saveAllToLocal();
     };
     copyBtn.onclick = () => {
       const selection = window.getSelection();
@@ -284,22 +285,22 @@
       document.execCommand('fontSize', false, "7");
       Array.from(editor.getElementsByTagName('font')).forEach(f => f.size = "");
       editor.style.fontSize = fontSizeInput.value + "px";
-      saveState();
+      saveState(); saveAllToLocal();
     };
     fontFamilyInput.onchange = () => {
       document.execCommand('fontName', false, fontFamilyInput.value);
       editor.style.fontFamily = fontFamilyInput.value;
-      saveState();
+      saveState(); saveAllToLocal();
     };
-    boldBtn.onclick = () => { document.execCommand('bold'); saveState(); };
-    italicBtn.onclick = () => { document.execCommand('italic'); saveState(); };
-    underlineBtn.onclick = () => { document.execCommand('underline'); saveState(); };
-    strikeBtn.onclick = () => { document.execCommand('strikeThrough'); saveState(); };
-    supBtn.onclick = () => { document.execCommand('superscript'); saveState(); };
-    subBtn.onclick = () => { document.execCommand('subscript'); saveState(); };
-    colorPicker.oninput = () => { document.execCommand('foreColor', false, colorPicker.value); saveState(); };
-    bgcolorPicker.oninput = () => { document.execCommand('hiliteColor', false, bgcolorPicker.value); saveState(); };
-    function highlightSelection() { document.execCommand('hiliteColor', false, '#ffff00'); saveState(); }
+    boldBtn.onclick = () => { document.execCommand('bold'); saveState(); saveAllToLocal(); };
+    italicBtn.onclick = () => { document.execCommand('italic'); saveState(); saveAllToLocal(); };
+    underlineBtn.onclick = () => { document.execCommand('underline'); saveState(); saveAllToLocal(); };
+    strikeBtn.onclick = () => { document.execCommand('strikeThrough'); saveState(); saveAllToLocal(); };
+    supBtn.onclick = () => { document.execCommand('superscript'); saveState(); saveAllToLocal(); };
+    subBtn.onclick = () => { document.execCommand('subscript'); saveState(); saveAllToLocal(); };
+    colorPicker.oninput = () => { document.execCommand('foreColor', false, colorPicker.value); saveState(); saveAllToLocal(); };
+    bgcolorPicker.oninput = () => { document.execCommand('hiliteColor', false, bgcolorPicker.value); saveState(); saveAllToLocal(); };
+    function highlightSelection() { document.execCommand('hiliteColor', false, '#ffff00'); saveState(); saveAllToLocal(); }
     highlightBtn.onclick = highlightSelection;
     function hugeSelection() {
       document.execCommand('fontSize', false, 7);
@@ -309,26 +310,26 @@
           f.style.fontSize = "48px";
         }
       });
-      saveState();
+      saveState(); saveAllToLocal();
     }
     hugeBtn.onclick = hugeSelection;
-    leftBtn.onclick = () => { document.execCommand('justifyLeft'); saveState(); };
-    centerBtn.onclick = () => { document.execCommand('justifyCenter'); saveState(); };
-    rightBtn.onclick = () => { document.execCommand('justifyRight'); saveState(); };
-    justifyBtn.onclick = () => { document.execCommand('justifyFull'); saveState(); };
-    olBtn.onclick = () => { document.execCommand('insertOrderedList'); saveState(); };
-    ulBtn.onclick = () => { document.execCommand('insertUnorderedList'); saveState(); };
-    indentBtn.onclick = () => { document.execCommand('indent'); saveState(); };
-    outdentBtn.onclick = () => { document.execCommand('outdent'); saveState(); };
+    leftBtn.onclick = () => { document.execCommand('justifyLeft'); saveState(); saveAllToLocal(); };
+    centerBtn.onclick = () => { document.execCommand('justifyCenter'); saveState(); saveAllToLocal(); };
+    rightBtn.onclick = () => { document.execCommand('justifyRight'); saveState(); saveAllToLocal(); };
+    justifyBtn.onclick = () => { document.execCommand('justifyFull'); saveState(); saveAllToLocal(); };
+    olBtn.onclick = () => { document.execCommand('insertOrderedList'); saveState(); saveAllToLocal(); };
+    ulBtn.onclick = () => { document.execCommand('insertUnorderedList'); saveState(); saveAllToLocal(); };
+    indentBtn.onclick = () => { document.execCommand('indent'); saveState(); saveAllToLocal(); };
+    outdentBtn.onclick = () => { document.execCommand('outdent'); saveState(); saveAllToLocal(); };
     linkBtn.onclick = () => {
       const url = prompt("Enter URL for link:");
       if (url) document.execCommand('createLink', false, url);
-      saveState();
+      saveState(); saveAllToLocal();
     };
     imageBtn.onclick = () => {
       const url = prompt("Enter image URL:");
       if (url) document.execCommand('insertImage', false, url);
-      saveState();
+      saveState(); saveAllToLocal();
     };
     printBtn.onclick = () => {
       let win = window.open('', '_blank');
@@ -362,7 +363,7 @@
           html = html.replace(regex, match => `<mark>${replaceText || match}</mark>`);
           editor.innerHTML = html;
         }
-        saveState();
+        saveState(); saveAllToLocal();
       }
     };
     editor.addEventListener('keydown', function(e){
@@ -401,7 +402,7 @@
       // Delete key clears all (legacy)
       else if (e.key === 'Delete' && (editor.innerText.length > 0)) {
         if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
-        e.preventDefault(); saveState(); updateCounts();
+        e.preventDefault(); saveState(); updateCounts(); saveAllToLocal();
       }
     });
 
@@ -421,7 +422,6 @@
     // -------- Drawing Tools Logic --------
     const drawToolbar = document.getElementById('draw-toolbar');
     const drawingCanvas = document.getElementById('drawing-canvas');
-    const drawToggleBtn = document.getElementById('draw-toggle-btn');
     const drawTool = document.getElementById('draw-tool');
     const drawColor = document.getElementById('draw-color');
     const drawWidth = document.getElementById('draw-width');
@@ -431,24 +431,16 @@
     let drawing = false, ctx, lastX, lastY;
 
     function resizeCanvas() {
-      // Get the same size as text-editor div
       drawingCanvas.width = drawingCanvas.offsetWidth;
       drawingCanvas.height = drawingCanvas.offsetHeight;
-      // Redraw if there is saved image
       restoreCanvas();
     }
     function enableCanvasEvents(enable) {
       drawingCanvas.classList.toggle('active', enable);
-      if (enable) {
-        drawToolbar.style.display = "flex";
-        drawingCanvas.style.pointerEvents = "all";
-      } else {
-        drawToolbar.style.display = "none";
-        drawingCanvas.style.pointerEvents = "none";
-      }
+      drawToolbar.style.display = enable ? "flex" : "none";
+      drawingCanvas.style.pointerEvents = enable ? "all" : "none";
     }
 
-    // Drawing functions
     function startDraw(e) {
       drawing = true;
       const rect = drawingCanvas.getBoundingClientRect();
@@ -473,7 +465,6 @@
     }
     function endDraw() { drawing = false; saveCanvas(); }
 
-    // LocalStorage: Save/Restore
     function saveAllToLocal() {
       localStorage.setItem('whiteboard_text', editor.innerHTML);
       localStorage.setItem('whiteboard_canvas', drawingCanvas.toDataURL());
@@ -486,12 +477,10 @@
       updateCounts();
     }
     function saveCanvas() {
-      // Save only if drawing mode is enabled (avoid blank saves on resize)
       if (drawingCanvas.classList.contains('active'))
         localStorage.setItem('whiteboard_canvas', drawingCanvas.toDataURL());
     }
     function restoreCanvas() {
-      // Clear
       ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
       let data = localStorage.getItem('whiteboard_canvas');
       if (data) {
@@ -503,8 +492,8 @@
         img.src = data;
       }
     }
-    // Drawing toolbar events
-    drawToggleBtn.onclick = function() {
+
+    document.getElementById('draw-toggle-btn').onclick = function() {
       const enabled = !drawingCanvas.classList.contains('active');
       enableCanvasEvents(enabled);
       if (enabled) {
@@ -529,14 +518,12 @@
     saveAllBtn.onclick = saveAllToLocal;
     loadAllBtn.onclick = loadAllFromLocal;
 
-    // Initialize canvas
     function initCanvas() {
       ctx = drawingCanvas.getContext('2d');
       resizeCanvas();
       restoreCanvas();
     }
     window.addEventListener('resize', resizeCanvas);
-    // Mouse/Touch drawing events
     drawingCanvas.addEventListener('mousedown', startDraw);
     drawingCanvas.addEventListener('mousemove', draw);
     drawingCanvas.addEventListener('mouseup', endDraw);
@@ -545,10 +532,6 @@
     drawingCanvas.addEventListener('touchmove', draw, { passive: false });
     drawingCanvas.addEventListener('touchend', endDraw);
 
-    // Save text and drawing automatically
-    editor.addEventListener('input', saveAllToLocal);
-
-    // Load from localStorage on startup
     window.onload = function() {
       initCanvas();
       if (localStorage.getItem('whiteboard_text')) editor.innerHTML = localStorage.getItem('whiteboard_text');
