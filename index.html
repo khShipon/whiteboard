@@ -5,93 +5,22 @@
   <title>Advanced Text Whiteboard Editor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      overflow: hidden;
-    }
-    #toolbar {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: auto;
-      background: #fff;
-      border-bottom: 1px solid #ddd;
-      z-index: 10;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      padding: 5px 10px;
-      box-sizing: border-box;
-      overflow-x: auto;
-    }
-    #toolbar button, #toolbar label, #toolbar select, #toolbar input[type="number"], #toolbar input[type="color"] {
-      margin-right: 6px;
-    }
-    #editor-container {
-      position: absolute;
-      left: 0;
-      top: 70px;
-      bottom: 0;
-      right: 0;
-      overflow: hidden;
-      background: #eaeaea;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-    }
-    #text-editor {
-      width: 90vw;
-      height: 80vh;
-      margin: 32px auto;
-      background: #fff;
-      border: 1.5px solid #bbb;
-      border-radius: 8px;
-      box-shadow: 0 0 6px #bbb;
-      font-size: 20px;
-      padding: 18px;
-      resize: none;
-      outline: none;
-      overflow-y: auto;
-      color: #222;
-    }
-    #toolbar button {
-      font-size: 16px;
-      background: #fafafa;
-      color: #222;
-      border: 1px solid #bbb;
-      border-radius: 4px;
-      padding: 5px 12px;
-      cursor: pointer;
-    }
-    #toolbar button:active {
-      background: #e3f2fd;
-    }
-    #statusbar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #fff;
-      border-top: 1px solid #ddd;
-      padding: 4px 16px;
-      font-size: 14px;
-      color: #444;
-      z-index: 15;
-      text-align: right;
-    }
-    @media (max-width: 700px) {
-      #text-editor { width: 96vw; height: 65vh; }
-    }
+    html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; overflow: hidden; }
+    #toolbar { position: fixed; top: 0; left: 0; right: 0; height: auto; background: #fff; border-bottom: 1px solid #ddd; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 5px 10px; box-sizing: border-box; overflow-x: auto;}
+    #toolbar button, #toolbar label, #toolbar select, #toolbar input[type="number"], #toolbar input[type="color"] { margin-right: 6px; }
+    #editor-container { position: absolute; left: 0; top: 70px; bottom: 0; right: 0; overflow: hidden; background: #eaeaea; display: flex; justify-content: center; align-items: flex-start; }
+    #text-editor { width: 90vw; height: 80vh; margin: 32px auto; background: #fff; border: 1.5px solid #bbb; border-radius: 8px; box-shadow: 0 0 6px #bbb; font-size: 20px; padding: 18px; resize: none; outline: none; overflow-y: auto; color: #222; }
+    #toolbar button { font-size: 16px; background: #fafafa; color: #222; border: 1px solid #bbb; border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+    #toolbar button:active { background: #e3f2fd; }
+    #statusbar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ddd; padding: 4px 16px; font-size: 14px; color: #444; z-index: 15; text-align: right; }
+    @media (max-width: 700px) { #text-editor { width: 96vw; height: 65vh; } }
   </style>
 </head>
 <body>
   <div id="toolbar">
-    <button id="undo-btn" title="Undo">⎌</button>
-    <button id="redo-btn" title="Redo">↻</button>
-    <button id="clear-btn" title="Clear (Delete)">🗑️</button>
+    <button id="undo-btn" title="Undo (Ctrl+Z)">⎌</button>
+    <button id="redo-btn" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">↻</button>
+    <button id="clear-btn" title="Clear (Delete) (Ctrl+Shift+D)">🗑️</button>
     <button id="copy-btn" title="Copy All">📋</button>
     <label for="font-size">Font Size:</label>
     <input type="number" id="font-size" min="10" max="72" value="20" style="width:48px;">
@@ -105,7 +34,7 @@
       <option value="Tahoma">Tahoma</option>
       <option value="Verdana">Verdana</option>
     </select>
-    <button id="bold-btn" title="Bold"><b>B</b></button>
+    <button id="bold-btn" title="Bold (Ctrl+B)"><b>B</b></button>
     <button id="italic-btn" title="Italic"><i>I</i></button>
     <button id="underline-btn" title="Underline"><u>U</u></button>
     <button id="strike-btn" title="Strikethrough"><s>S</s></button>
@@ -113,6 +42,8 @@
     <button id="sub-btn" title="Subscript">x<sub>2</sub></button>
     <button id="color-btn" title="Text Color"><input type="color" id="color-picker" style="width:22px;height:22px;padding:0;border:none;"></button>
     <button id="bgcolor-btn" title="Highlight Color"><input type="color" id="bgcolor-picker" style="width:22px;height:22px;padding:0;border:none;"></button>
+    <button id="highlight-btn" title="Highlight Yellow (Ctrl+Shift+H)">🖍️</button>
+    <button id="huge-btn" title="Huge Size (Ctrl+Shift+L)">A+</button>
     <button id="left-btn" title="Align Left">⬅️</button>
     <button id="center-btn" title="Align Center">⬇️</button>
     <button id="right-btn" title="Align Right">➡️</button>
@@ -150,6 +81,8 @@
     const bgcolorPicker = document.getElementById('bgcolor-picker');
     const colorBtn = document.getElementById('color-btn');
     const bgcolorBtn = document.getElementById('bgcolor-btn');
+    const highlightBtn = document.getElementById('highlight-btn');
+    const hugeBtn = document.getElementById('huge-btn');
     const leftBtn = document.getElementById('left-btn');
     const centerBtn = document.getElementById('center-btn');
     const rightBtn = document.getElementById('right-btn');
@@ -166,14 +99,24 @@
     const findBtn = document.getElementById('find-btn');
     const wordCount = document.getElementById('word-count');
     const charCount = document.getElementById('char-count');
-    // Undo/Redo
+
+    // Undo/Redo with execCommand (works in most browsers)
     undoBtn.onclick = () => document.execCommand('undo');
     redoBtn.onclick = () => document.execCommand('redo');
+    // Also allow Ctrl+Y and Ctrl+Shift+Z for redo
+    document.addEventListener('keydown', function(e){
+      if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        redoBtn.click();
+      }
+    });
+
     // Clear/Delete
     clearBtn.onclick = () => {
       if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
       updateCounts();
     };
+
     // Copy All
     copyBtn.onclick = () => {
       const selection = window.getSelection();
@@ -184,6 +127,7 @@
       document.execCommand('copy');
       selection.removeAllRanges();
     };
+
     // Font size
     fontSizeInput.oninput = () => {
       document.execCommand('fontSize', false, "7");
@@ -191,11 +135,13 @@
       editor.focus();
       editor.style.fontSize = fontSizeInput.value + "px";
     };
+
     // Font family
     fontFamilyInput.onchange = () => {
       document.execCommand('fontName', false, fontFamilyInput.value);
       editor.focus();
     };
+
     // Text formatting
     boldBtn.onclick = () => document.execCommand('bold');
     italicBtn.onclick = () => document.execCommand('italic');
@@ -203,30 +149,58 @@
     strikeBtn.onclick = () => document.execCommand('strikeThrough');
     supBtn.onclick = () => document.execCommand('superscript');
     subBtn.onclick = () => document.execCommand('subscript');
+
     // Color pickers
     colorPicker.oninput = () => document.execCommand('foreColor', false, colorPicker.value);
     bgcolorPicker.oninput = () => document.execCommand('hiliteColor', false, bgcolorPicker.value);
+
+    // Highlight (yellow)
+    function highlightSelection() {
+      document.execCommand('hiliteColor', false, '#ffff00');
+      editor.focus();
+    }
+    highlightBtn.onclick = highlightSelection;
+
+    // Huge size
+    function hugeSelection() {
+      document.execCommand('fontSize', false, 7);
+      // The execCommand('fontSize') inserts <font size="7">, but to get the correct visual, override via CSS
+      Array.from(editor.getElementsByTagName('font')).forEach(f => {
+        if (f.size === "7") {
+          f.removeAttribute('size');
+          f.style.fontSize = "48px";
+        }
+      });
+      editor.focus();
+    }
+    hugeBtn.onclick = hugeSelection;
+
     // Alignment
     leftBtn.onclick = () => document.execCommand('justifyLeft');
     centerBtn.onclick = () => document.execCommand('justifyCenter');
     rightBtn.onclick = () => document.execCommand('justifyRight');
     justifyBtn.onclick = () => document.execCommand('justifyFull');
+
     // Lists
     olBtn.onclick = () => document.execCommand('insertOrderedList');
     ulBtn.onclick = () => document.execCommand('insertUnorderedList');
+
     // Indent/Outdent
     indentBtn.onclick = () => document.execCommand('indent');
     outdentBtn.onclick = () => document.execCommand('outdent');
+
     // Insert Link
     linkBtn.onclick = () => {
       const url = prompt("Enter URL for link:");
       if (url) document.execCommand('createLink', false, url);
     };
+
     // Insert Image
     imageBtn.onclick = () => {
       const url = prompt("Enter image URL:");
       if (url) document.execCommand('insertImage', false, url);
     };
+
     // Print
     printBtn.onclick = () => {
       let win = window.open('', '_blank');
@@ -234,6 +208,7 @@
       win.document.close();
       win.print();
     };
+
     // Save as TXT
     saveBtn.onclick = () => {
       const text = editor.innerText;
@@ -243,6 +218,7 @@
       link.href = URL.createObjectURL(blob);
       link.click();
     };
+
     // Save as HTML
     saveHtmlBtn.onclick = () => {
       const html = editor.innerHTML;
@@ -252,6 +228,7 @@
       link.href = URL.createObjectURL(blob);
       link.click();
     };
+
     // Find and Replace
     findBtn.onclick = () => {
       const findText = prompt("Find what?");
@@ -265,22 +242,56 @@
         }
       }
     };
+
     // Keyboard shortcuts
     editor.addEventListener('keydown', function(e){
-      if (e.key === 'Delete' && (editor.innerText.length > 0)) {
+      // Delete all: Ctrl+Shift+D
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        clearBtn.click();
+      }
+      // Highlight: Ctrl+Shift+H
+      else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        highlightBtn.click();
+      }
+      // Huge size: Ctrl+Shift+L
+      else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        hugeBtn.click();
+      }
+      // Bold: Ctrl+B
+      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        boldBtn.click();
+      }
+      // Undo: Ctrl+Z
+      else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        undoBtn.click();
+      }
+      // Redo: Ctrl+Y or Ctrl+Shift+Z (handled above globally too)
+      else if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        redoBtn.click();
+      }
+      // Save: Ctrl+S
+      else if (e.ctrlKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveBtn.click();
+      }
+      // Print: Ctrl+P
+      else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        printBtn.click();
+      }
+      // Delete key clears all (legacy)
+      else if (e.key === 'Delete' && (editor.innerText.length > 0)) {
         if (confirm("Clear the whiteboard?")) editor.innerHTML = '';
         e.preventDefault();
         updateCounts();
       }
-      if (e.ctrlKey && e.key === 'z') undoBtn.click();
-      if (e.ctrlKey && e.key === 'y') redoBtn.click();
-      if (e.ctrlKey && e.key === 'b') { e.preventDefault(); boldBtn.click(); }
-      if (e.ctrlKey && e.key === 'i') { e.preventDefault(); italicBtn.click(); }
-      if (e.ctrlKey && e.key === 'u') { e.preventDefault(); underlineBtn.click(); }
-      if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveBtn.click(); }
-      if (e.ctrlKey && e.key === 'p') { e.preventDefault(); printBtn.click(); }
-      updateCounts();
     });
+
     // Word/Character Count
     function updateCounts() {
       let text = editor.innerText;
@@ -288,6 +299,7 @@
       charCount.textContent = text.replace(/\s/g, '').length;
     }
     editor.addEventListener('input', updateCounts);
+
     // Initial states
     editor.style.fontSize = fontSizeInput.value + "px";
     editor.style.fontFamily = fontFamilyInput.value;
