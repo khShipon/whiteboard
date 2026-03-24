@@ -1,387 +1,1707 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Collaborative Whiteboard</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fabric.js CDN for powerful canvas manipulation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <!-- Socket.IO Client CDN for real-time communication -->
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-
-    <style>
-        /* Custom styles to override or extend Tailwind, and fix canvas issues */
-        body {
-            overflow: hidden; /* Prevent body scroll */
-            user-select: none; /* Prevent accidental text selection */
-        }
-
-        /* Hide the default contenteditable outline for sticky notes */
-        .sticky-note-content:focus {
-            outline: none;
-        }
-
-        /* Custom scrollbar for chatbox and potentially whiteboard if needed */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        /* Fabric.js adds its own canvas, ensure it's positioned correctly */
-        .canvas-container {
-            position: absolute !important;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-        .canvas-container canvas {
-            display: block; /* Remove extra space below canvas */
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EduBoard - Digital Whiteboard for Teachers</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+--primary:#6366f1;--primary-h:#4f46e5;--primary-l:#818cf8;
+--bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;
+--text:#1e293b;--text2:#64748b;--text3:#94a3b8;
+--border:#e2e8f0;--border2:#cbd5e1;
+--canvas-bg:#ffffff;--shadow:0 1px 3px rgba(0,0,0,.08);
+--shadow2:0 4px 12px rgba(0,0,0,.1);--radius:10px;
+--top-h:48px;--left-w:52px;--right-w:240px;--bottom-h:82px;
+--danger:#ef4444;--success:#22c55e;--warn:#f59e0b;
+}
+[data-theme="dark"]{
+--bg:#0f172a;--surface:#1e293b;--surface2:#334155;
+--text:#f1f5f9;--text2:#94a3b8;--text3:#64748b;
+--border:#334155;--border2:#475569;--canvas-bg:#1e293b;
+--shadow:0 1px 3px rgba(0,0,0,.3);--shadow2:0 4px 12px rgba(0,0,0,.4);
+}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+body{display:grid;grid-template-areas:"top top top" "left canvas right" "bottom bottom bottom";grid-template-rows:var(--top-h) 1fr var(--bottom-h);grid-template-columns:var(--left-w) 1fr var(--right-w);transition:grid-template-columns .3s}
+body.right-closed{grid-template-columns:var(--left-w) 1fr 0px}
+body.present-mode{grid-template-areas:"canvas canvas canvas";grid-template-rows:1fr;grid-template-columns:1fr}
+body.present-mode #top-toolbar,body.present-mode #left-toolbar,body.present-mode #right-panel,body.present-mode #bottom-bar{display:none!important}
+#top-toolbar{grid-area:top;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:4px;z-index:100;box-shadow:var(--shadow)}
+.tb-group{display:flex;align-items:center;gap:2px;padding:0 6px;border-right:1px solid var(--border)}
+.tb-group:last-child{border-right:none;margin-left:auto}
+.tb-btn{width:34px;height:34px;border:none;background:transparent;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:14px;transition:all .15s;position:relative}
+.tb-btn:hover{background:var(--bg)}
+.tb-btn.active{background:var(--primary);color:white}
+.tb-btn svg{width:18px;height:18px;fill:currentColor}
+.tb-btn[title]::after{content:attr(title);position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;font-size:11px;padding:2px 6px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
+.tb-btn:hover[title]::after{opacity:1}
+.tb-label{font-size:12px;color:var(--text2);font-weight:600;min-width:40px;text-align:center}
+.app-title{font-weight:700;font-size:15px;color:var(--primary);letter-spacing:-.5px;padding:0 8px;white-space:nowrap}
+#left-toolbar{grid-area:left;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;overflow-y:auto;overflow-x:hidden;z-index:90}
+.tool-btn{width:40px;height:40px;border:none;background:transparent;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);transition:all .15s;position:relative;flex-shrink:0}
+.tool-btn:hover{background:var(--bg);color:var(--text)}
+.tool-btn.active{background:var(--primary);color:white}
+.tool-btn svg{width:20px;height:20px;fill:currentColor}
+.tool-sep{width:30px;height:1px;background:var(--border);margin:4px 0;flex-shrink:0}
+#canvas-container{grid-area:canvas;position:relative;overflow:hidden;background:var(--canvas-bg);cursor:crosshair}
+#canvas-container.grab{cursor:grab}
+#canvas-container.grabbing{cursor:grabbing}
+#canvas-container.text-cursor{cursor:text}
+#canvas-container.select-cursor{cursor:default}
+#whiteboard{position:absolute;top:0;left:0;touch-action:none}
+#right-panel{grid-area:right;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;overflow-x:hidden;z-index:90;transition:width .3s;width:var(--right-w)}
+body.right-closed #right-panel{width:0;overflow:hidden;border:none}
+.panel-section{padding:12px;border-bottom:1px solid var(--border)}
+.panel-title{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.5px;margin-bottom:8px}
+.color-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.color-swatch{width:28px;height:28px;border-radius:6px;border:2px solid transparent;cursor:pointer;transition:all .15s}
+.color-swatch:hover,.color-swatch.active{border-color:var(--primary);transform:scale(1.1)}
+.slider-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.slider-row label{font-size:12px;color:var(--text2);min-width:50px}
+.slider-row input[type="range"]{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:4px;outline:none}
+.slider-row input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--primary);cursor:pointer;border:2px solid white;box-shadow:var(--shadow)}
+.slider-row .val{font-size:12px;color:var(--text);font-weight:600;min-width:30px;text-align:right}
+.check-row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px;color:var(--text2);cursor:pointer}
+.check-row input{accent-color:var(--primary)}
+.bg-options{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bg-opt{padding:8px;border:2px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;text-align:center;transition:all .15s;background:var(--surface2)}
+.bg-opt:hover{border-color:var(--primary-l)}
+.bg-opt.active{border-color:var(--primary);background:rgba(99,102,241,.08)}
+.font-controls{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.font-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:13px;color:var(--text);transition:all .15s}
+.font-btn:hover{border-color:var(--primary)}
+.font-btn.active{background:var(--primary);color:white;border-color:var(--primary)}
+.math-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.math-btn{padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:16px;text-align:center;transition:all .15s}
+.math-btn:hover{background:var(--primary);color:white;border-color:var(--primary)}
+#bottom-bar{grid-area:bottom;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:6px 12px;gap:8px;z-index:100}
+#page-thumbs{display:flex;gap:8px;flex:1;overflow-x:auto;padding:4px 0;scrollbar-width:thin}
+.page-thumb{width:100px;height:60px;border:2px solid var(--border);border-radius:8px;cursor:pointer;position:relative;flex-shrink:0;overflow:hidden;background:white;transition:all .15s}
+.page-thumb:hover{border-color:var(--primary-l)}
+.page-thumb.active{border-color:var(--primary);box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+.page-thumb canvas{width:100%;height:100%;object-fit:contain}
+.page-thumb .page-num{position:absolute;bottom:2px;right:4px;font-size:9px;background:rgba(0,0,0,.5);color:white;padding:1px 4px;border-radius:3px}
+.page-thumb .page-name{position:absolute;top:2px;left:4px;font-size:8px;color:var(--text2);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.page-thumb .page-del{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:var(--danger);color:white;border:none;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
+.page-thumb:hover .page-del{display:flex}
+.page-actions{display:flex;gap:4px;flex-shrink:0}
+.page-btn{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);transition:all .15s;font-weight:600;white-space:nowrap}
+.page-btn:hover{background:var(--primary);color:white;border-color:var(--primary)}
+.page-indicator{font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap;min-width:60px;text-align:center}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:16px;padding:24px;max-width:400px;width:90%;box-shadow:var(--shadow2)}
+.modal h3{font-size:18px;margin-bottom:16px;color:var(--text)}
+.modal input[type="text"],.modal input[type="number"]{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface2);color:var(--text);outline:none}
+.modal input:focus{border-color:var(--primary)}
+.modal-btns{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.modal-btn{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s}
+.modal-btn.primary{background:var(--primary);color:white}
+.modal-btn.primary:hover{background:var(--primary-h)}
+.modal-btn.secondary{background:var(--bg);color:var(--text)}
+.modal-btn.danger{background:var(--danger);color:white}
+.timer-display{font-size:64px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;color:var(--text);margin:16px 0}
+.timer-controls{display:flex;gap:8px;justify-content:center}
+.timer-input{display:flex;gap:8px;align-items:center;justify-content:center;margin:12px 0}
+.timer-input input{width:60px;text-align:center;font-size:18px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)}
+.clock-widget{position:fixed;top:56px;right:8px;background:var(--surface);padding:6px 14px;border-radius:10px;font-size:20px;font-weight:700;color:var(--text);box-shadow:var(--shadow2);z-index:500;display:none;font-variant-numeric:tabular-nums}
+.clock-widget.show{display:block}
+.laser-dot{position:fixed;width:14px;height:14px;background:red;border-radius:50%;pointer-events:none;z-index:800;transform:translate(-50%,-50%);box-shadow:0 0 12px red,0 0 24px rgba(255,0,0,.5);display:none}
+.laser-dot.show{display:block}
+.laser-trail{position:fixed;width:8px;height:8px;background:rgba(255,0,0,.6);border-radius:50%;pointer-events:none;z-index:799;transform:translate(-50%,-50%);transition:opacity .5s}
+.spotlight-overlay{position:fixed;inset:0;pointer-events:none;z-index:700;display:none}
+.spotlight-overlay.show{display:block}
+.text-input-overlay{position:absolute;z-index:200;min-width:100px;min-height:30px;border:2px solid var(--primary);border-radius:4px;padding:4px 8px;background:rgba(255,255,255,.9);outline:none;font-family:'Segoe UI',system-ui,sans-serif;resize:both;overflow:auto}
+[data-theme="dark"] .text-input-overlay{background:rgba(30,41,59,.9);color:#f1f5f9}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;padding:8px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.context-menu{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow2);z-index:600;overflow:hidden;min-width:160px;display:none}
+.context-menu.open{display:block}
+.ctx-item{padding:8px 16px;cursor:pointer;font-size:13px;color:var(--text);transition:background .1s;display:flex;align-items:center;gap:8px}
+.ctx-item:hover{background:var(--bg)}
+.ctx-item.danger{color:var(--danger)}
+@media(max-width:900px){
+  body{grid-template-columns:var(--left-w) 1fr 0;grid-template-rows:var(--top-h) 1fr var(--bottom-h)}
+  #right-panel{position:fixed;right:0;top:var(--top-h);bottom:var(--bottom-h);width:var(--right-w);transform:translateX(100%);transition:transform .3s;z-index:200;box-shadow:var(--shadow2)}
+  body.right-open #right-panel{transform:translateX(0)}
+  .app-title{display:none}
+}
+@media(max-width:600px){
+  body{grid-template-columns:0 1fr 0;grid-template-rows:var(--top-h) 1fr var(--bottom-h)}
+  #left-toolbar{position:fixed;left:0;top:var(--top-h);bottom:var(--bottom-h);width:var(--left-w);transform:translateX(-100%);transition:transform .3s;z-index:200;box-shadow:var(--shadow2);background:var(--surface)}
+  body.left-open #left-toolbar{transform:translateX(0)}
+  .tb-group:not(.essential){display:none}
+}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+</style>
 </head>
-<body class="flex h-screen bg-gray-100 font-sans text-gray-800">
-
-    <!-- Left Sidebar (Tools) -->
-    <div class="flex flex-col w-64 bg-gray-900 text-white p-4 shadow-lg overflow-y-auto z-10">
-        <h1 class="text-2xl font-bold text-teal-400 mb-6 border-b border-gray-700 pb-3">Whiteboard Tools</h1>
-
-        <!-- Drawing Tools -->
-        <div class="mb-6">
-            <h2 class="text-lg font-semibold mb-2 text-gray-300">Drawing</h2>
-            <div class="grid grid-cols-2 gap-2">
-                <button id="tool-pen" class="tool-btn bg-teal-600 hover:bg-teal-700 p-2 rounded flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path></svg> Pen
-                </button>
-                <button id="tool-eraser" class="tool-btn bg-red-600 hover:bg-red-700 p-2 rounded flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"></path></svg> Eraser
-                </button>
-                <button id="tool-line" class="tool-btn bg-blue-600 hover:bg-blue-700 p-2 rounded col-span-1 flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 12a1 1 0 011-1h10a1 1 0 011 1v1a1 1 0 01-1 1H5a1 1 0 01-1-1v-1z"></path></svg> Line
-                </button>
-                <button id="tool-rect" class="tool-btn bg-blue-600 hover:bg-blue-700 p-2 rounded col-span-1 flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4z"></path></svg> Rectangle
-                </button>
-                <button id="tool-circle" class="tool-btn bg-blue-600 hover:bg-blue-700 p-2 rounded col-span-1 flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-2a1 1 0 100 2 1 1 0 000-2zm-7 4a1 1 0 100 2 1 1 0 000-2zm7 0a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"></path></svg> Circle
-                </button>
-                <button id="tool-arrow" class="tool-btn bg-blue-600 hover:bg-blue-700 p-2 rounded col-span-1 flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Arrow
-                </button>
-            </div>
-            <div class="mt-4">
-                <label for="pen-thickness" class="block text-sm font-medium text-gray-400">Thickness:</label>
-                <input type="range" id="pen-thickness" min="1" max="20" value="5" class="w-full mt-1">
-            </div>
-            <div class="mt-2">
-                <label for="pen-color" class="block text-sm font-medium text-gray-400">Color:</label>
-                <input type="color" id="pen-color" value="#000000" class="w-full h-8 mt-1 rounded-md">
-            </div>
-        </div>
-
-        <!-- Text Tool -->
-        <div class="mb-6">
-            <h2 class="text-lg font-semibold mb-2 text-gray-300">Text & Sticky</h2>
-            <button id="tool-text" class="tool-btn bg-purple-600 hover:bg-purple-700 p-2 rounded w-full mb-2 flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 000-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm1 3a1 1 0 000 2h4a1 1 0 100-2H8z" clip-rule="evenodd"></path></svg> Text
-            </button>
-            <button id="tool-sticky" class="tool-btn bg-yellow-600 hover:bg-yellow-700 p-2 rounded w-full flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 002-2V4H4z" clip-rule="evenodd"></path></svg> Sticky Note
-            </button>
-        </div>
-
-        <!-- Utility Actions -->
-        <div class="mb-6">
-            <h2 class="text-lg font-semibold mb-2 text-gray-300">Utilities</h2>
-            <div class="grid grid-cols-2 gap-2">
-                <button id="undo-btn" class="bg-gray-700 hover:bg-gray-600 p-2 rounded flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clip-rule="evenodd"></path></svg> Undo
-                </button>
-                <button id="redo-btn" class="bg-gray-700 hover:bg-gray-600 p-2 rounded flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-.707-10.293a1 1 0 00-1.414-1.414L9.414 9H7a1 1 0 100 2h2.414l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3z" clip-rule="evenodd"></path></svg> Redo
-                </button>
-            </div>
-            <button id="upload-image-btn" class="bg-gray-700 hover:bg-gray-600 p-2 rounded w-full mt-2 flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-4 4 4 4-4V5h-2L8 9l-4-4H4v10zm-.5-5.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" clip-rule="evenodd"></path></svg> Upload Image
-            </button>
-            <input type="file" id="image-upload-input" accept="image/*" class="hidden">
-            <button id="export-png-btn" class="bg-gray-700 hover:bg-gray-600 p-2 rounded w-full mt-2 flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 11a1 1 0 011-1h2a1 1 0 011 1v3a1 1 0 01-1 1H6a1 1 0 01-1-1v-3zm5-4a1 1 0 011-1h2a1 1 0 011 1v7a1 1 0 01-1 1h-2a1 1 0 01-1-1V7zm5-1a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1h-2a1 1 0 01-1-1V6z" clip-rule="evenodd"></path></svg> Export PNG
-            </button>
-            <button id="export-pdf-btn" class="bg-gray-700 hover:bg-gray-600 p-2 rounded w-full mt-2 flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L11.586 2.586A2 2 0 0010.172 2H6zm2 10a1 1 0 100 2h4a1 1 0 100-2H8zm0 3a1 1 0 100 2h4a1 1 0 100-2H8zm-2-7V4h3.586L14 7.414V10H6V6z" clip-rule="evenodd"></path></svg> Export PDF
-            </button>
-            <button id="clear-board-btn" class="bg-red-700 hover:bg-red-800 p-2 rounded w-full mt-2 flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 000-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg> Clear Board
-            </button>
-        </div>
-
-        <div class="mt-auto text-sm text-gray-500 pt-4 border-t border-gray-800">
-            <p>Share this link to collaborate:</p>
-            <input type="text" id="share-link" class="w-full bg-gray-700 text-gray-200 text-xs p-1 rounded-md mt-1" readonly>
-            <button id="copy-link-btn" class="bg-gray-700 hover:bg-gray-600 text-xs p-1 rounded-md mt-1 w-full">Copy Link</button>
-        </div>
+<body class="">
+<!-- TOP TOOLBAR -->
+<div id="top-toolbar">
+  <div class="tb-group essential">
+    <button class="tb-btn" id="btn-left-toggle" onclick="toggleLeftPanel()">
+      <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+    <span class="app-title">📐 EduBoard</span>
+  </div>
+  <div class="tb-group essential">
+    <button class="tb-btn" id="btn-undo" title="Undo (Ctrl+Z)" onclick="app.undo()">
+      <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+    </button>
+    <button class="tb-btn" id="btn-redo" title="Redo (Ctrl+Y)" onclick="app.redo()">
+      <svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+    </button>
+    <button class="tb-btn" title="Clear Board" onclick="app.clearBoard()">
+      <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+    </button>
+  </div>
+  <div class="tb-group">
+    <button class="tb-btn" title="Zoom Out" onclick="app.zoomOut()">
+      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z"/></svg>
+    </button>
+    <span class="tb-label" id="zoom-label">100%</span>
+    <button class="tb-btn" title="Zoom In" onclick="app.zoomIn()">
+      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm-2-4h2v2h1V10h2V9h-2V7h-1v2h-2v1z"/></svg>
+    </button>
+    <button class="tb-btn" title="Reset Zoom" onclick="app.resetZoom()">
+      <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+    </button>
+  </div>
+  <div class="tb-group">
+    <button class="tb-btn" title="Save PNG (Ctrl+S)" onclick="app.saveAsPNG()">
+      <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+    </button>
+    <button class="tb-btn" title="Save PDF" onclick="app.saveAsPDF()">
+      <svg viewBox="0 0 24 24"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>
+    </button>
+    <button class="tb-btn" title="Save JSON" onclick="app.saveAsJSON()">
+      <svg viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/></svg>
+    </button>
+    <button class="tb-btn" title="Load File" onclick="app.loadFromFile()">
+      <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+    </button>
+  </div>
+  <div class="tb-group">
+    <button class="tb-btn" id="btn-timer" title="Timer" onclick="toggleTimer()">
+      <svg viewBox="0 0 24 24"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+    </button>
+    <button class="tb-btn" id="btn-clock" title="Clock" onclick="toggleClock()">
+      <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+    </button>
+    <button class="tb-btn" id="btn-present" title="Presentation Mode" onclick="togglePresentation()">
+      <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.11-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
+    </button>
+    <button class="tb-btn" title="Fullscreen" onclick="toggleFullscreen()">
+      <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+    </button>
+    <button class="tb-btn" id="btn-dark" title="Dark Mode" onclick="toggleDarkMode()">
+      <svg viewBox="0 0 24 24"><path d="M9.37 5.51A7.35 7.35 0 0 0 9.1 7.5c0 4.08 3.32 7.4 7.4 7.4.68 0 1.35-.09 1.99-.27A7.014 7.014 0 0 1 12 19c-3.86 0-7-3.14-7-7 0-2.93 1.81-5.45 4.37-6.49zM12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+    </button>
+    <button class="tb-btn" title="Settings Panel" onclick="toggleRightPanel()">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </button>
+  </div>
+</div>
+<!-- LEFT TOOLBAR -->
+<div id="left-toolbar">
+  <button class="tool-btn active" data-tool="pen" title="Pen (P)" onclick="app.setTool('pen')">
+    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="pencil" title="Pencil" onclick="app.setTool('pencil')">
+    <svg viewBox="0 0 24 24"><path d="M19.28 4.93l-.71-.71A2.006 2.006 0 0 0 17.15 3.5c-.51 0-1.01.2-1.41.59L4 15.82V20h4.18L19.89 8.29c.78-.78.78-2.05 0-2.83l-.61-.53zM7.32 18H6v-1.32l9.03-9.03 1.32 1.32L7.32 18z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="highlighter" title="Highlighter" onclick="app.setTool('highlighter')">
+    <svg viewBox="0 0 24 24"><path d="M6 14l3 3v5h6v-5l3-3V9H6v5zm5-12h2v3h-2V2zM3.5 5.88l1.41-1.41 2.12 2.12L5.62 8 3.5 5.88zm13.46.71l2.12-2.12 1.41 1.41L18.38 8l-1.42-1.41z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="eraser" title="Eraser (E)" onclick="app.setTool('eraser')">
+    <svg viewBox="0 0 24 24"><path d="M15.14 3c-.51 0-1.01.2-1.41.59L2.59 14.73c-.78.77-.78 2.04 0 2.83L5.03 20H13l8.41-8.41c.78-.78.78-2.05 0-2.83l-4.86-4.86c-.4-.4-.9-.6-1.41-.6zm-3.73 15H5.85l-2.12-2.12 5.66-5.66 4.24 4.24L11.41 18z"/></svg>
+  </button>
+  <div class="tool-sep"></div>
+  <button class="tool-btn" data-tool="text" title="Text (T)" onclick="app.setTool('text')">
+    <svg viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4H5z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="line" title="Line" onclick="app.setTool('line')">
+    <svg viewBox="0 0 24 24"><path d="M19.71 4.29a1 1 0 0 0-1.42 0L4.29 18.29a1 1 0 1 0 1.42 1.42L19.71 5.71a1 1 0 0 0 0-1.42z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="rect" title="Rectangle" onclick="app.setTool('rect')">
+    <svg viewBox="0 0 24 24"><path d="M19 5H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 12H5V7h14v10z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="circle" title="Circle (C)" onclick="app.setTool('circle')">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="arrow" title="Arrow" onclick="app.setTool('arrow')">
+    <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="freedraw" title="Free Draw" onclick="app.setTool('freedraw')">
+    <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99l1.5 1.5z"/></svg>
+  </button>
+  <div class="tool-sep"></div>
+  <button class="tool-btn" data-tool="select" title="Select/Move" onclick="app.setTool('select')">
+    <svg viewBox="0 0 24 24"><path d="M7 2l8 19.5-3.22-7.43L5 15.78 7 2z"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="pan" title="Pan/Move Board" onclick="app.setTool('pan')">
+    <svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+  </button>
+  <div class="tool-sep"></div>
+  <button class="tool-btn" data-tool="laser" title="Laser Pointer" onclick="app.setTool('laser')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="#ef4444"/><circle cx="12" cy="12" r="8" fill="none" stroke="#ef4444" stroke-width="1.5"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="spotlight" title="Spotlight" onclick="app.setTool('spotlight')">
+    <svg viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+  </button>
+</div>
+<!-- CANVAS -->
+<div id="canvas-container">
+  <canvas id="whiteboard"></canvas>
+  <div class="laser-dot" id="laser-dot"></div>
+  <canvas id="spotlight-canvas" class="spotlight-overlay"></canvas>
+</div>
+<!-- RIGHT PANEL -->
+<div id="right-panel">
+  <div class="panel-section">
+    <div class="panel-title">Stroke Color</div>
+    <div class="color-grid" id="color-grid"></div>
+    <div class="slider-row" style="margin-top:8px">
+      <label>Custom</label>
+      <input type="color" id="custom-color" value="#000000" style="width:32px;height:28px;border:none;padding:0;cursor:pointer;border-radius:4px">
     </div>
-
-    <!-- Main Content Area -->
-    <div class="flex-grow flex flex-col relative">
-        <!-- Canvas Container -->
-        <div id="canvas-wrapper" class="absolute inset-0 overflow-hidden">
-            <canvas id="whiteboard-canvas" class="bg-white shadow-md"></canvas>
-            <!-- Overlay for custom sticky notes if not using Fabric.js objects fully -->
-        </div>
-
-        <!-- Board Controls (Zoom & Pan) -->
-        <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-gray-900 p-2 rounded-lg shadow-lg z-20">
-            <button id="zoom-in-btn" class="text-white hover:bg-gray-700 p-2 rounded-full">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
-            </button>
-            <button id="zoom-out-btn" class="text-white hover:bg-gray-700 p-2 rounded-full">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
-            </button>
-            <button id="reset-zoom-btn" class="text-white hover:bg-gray-700 p-2 rounded-full text-sm">
-                1:1
-            </button>
-            <!-- Optional: Template Select -->
-            <select id="board-template-select" class="bg-gray-800 text-white p-2 rounded-md">
-                <option value="blank">Blank</option>
-                <option value="grid">Grid</option>
-                <option value="lined">Lined Paper</option>
-            </select>
-        </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-title">Stroke Size</div>
+    <div class="slider-row">
+      <input type="range" id="size-slider" min="1" max="50" value="3">
+      <span class="val" id="size-val">3</span>
     </div>
-
-    <!-- Right Sidebar (Chat) -->
-    <div class="flex flex-col w-72 bg-gray-900 text-white p-4 shadow-lg z-10">
-        <h2 class="text-2xl font-bold text-teal-400 mb-6 border-b border-gray-700 pb-3">Chat</h2>
-        <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 p-2 bg-gray-800 rounded-md text-sm leading-relaxed custom-scrollbar">
-            <!-- Chat messages will be appended here -->
-        </div>
-        <div class="flex gap-2">
-            <input type="text" id="chat-input" placeholder="Type a message..." class="flex-grow p-2 rounded-md bg-gray-700 text-white placeholder-gray-400">
-            <button id="send-chat-btn" class="bg-teal-600 hover:bg-teal-700 p-2 rounded-md">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.169-1.409l-7-14z"></path></svg>
-            </button>
-        </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-title">Opacity</div>
+    <div class="slider-row">
+      <input type="range" id="opacity-slider" min="5" max="100" value="100">
+      <span class="val" id="opacity-val">100%</span>
     </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script>
-        // Main JavaScript logic for the whiteboard app
-        document.addEventListener('DOMContentLoaded', () => {
-            // --- Configuration & Initialization ---
-            const canvas = new fabric.Canvas('whiteboard-canvas', {
-                isDrawingMode: true, // Start in drawing mode
-                selection: true,    // Enable object selection
-                width: window.innerWidth - 64 - 72, // Initial width (viewport - sidebars)
-                height: window.innerHeight,         // Initial height
-                backgroundColor: '#ffffff'
-            });
-
-            // Make canvas responsive to window resize
-            const resizeCanvas = () => {
-                const canvasWrapper = document.getElementById('canvas-wrapper');
-                canvas.setWidth(canvasWrapper.offsetWidth);
-                canvas.setHeight(canvasWrapper.offsetHeight);
-                // Redraw objects to ensure they are visible after resize
-                canvas.renderAll();
-            };
-            window.addEventListener('resize', resizeCanvas);
-            resizeCanvas(); // Initial resize on load
-
-            // Socket.IO connection (IMPORTANT: This URL must point to your Node.js server)
-            const socket = io('http://localhost:3000'); // Change this to your server URL/IP if deployed
-
-            // Unique ID for this client session, used to differentiate user actions
-            const clientId = Math.random().toString(36).substr(2, 9);
-            console.log('Client ID:', clientId);
-
-            let history = []; // Stores canvas states for undo/redo
-            let historyPointer = -1; // Current position in history
-            let isRedoing = false;   // Flag to prevent saving state during redo
-
-            // Initial save to history
-            const saveState = () => {
-                if (!isRedoing) {
-                    const json = JSON.stringify(canvas.toJSON());
-                    // Only push if different from last state to avoid redundant entries
-                    if (history[historyPointer] !== json) {
-                        history = history.slice(0, historyPointer + 1); // Clear future history on new action
-                        history.push(json);
-                        historyPointer = history.length - 1;
-                    }
-                }
-            };
-
-            // Load initial state from server if available (for real-time sync after connection)
-            socket.on('boardState', (state) => {
-                canvas.loadFromJSON(state, () => {
-                    canvas.renderAll();
-                    saveState(); // Save the loaded state as the initial history entry
-                    console.log('Board state loaded from server.');
-                });
-            });
-
-            // Emit canvas changes for collaboration
-            let updateTimeout;
-            canvas.on('object:added', () => { saveState(); emitCanvasChange(); });
-            canvas.on('object:modified', () => { saveState(); emitCanvasChange(); });
-            canvas.on('object:removed', () => { saveState(); emitCanvasChange(); });
-            canvas.on('path:created', () => { saveState(); emitCanvasChange(); });
-
-            const emitCanvasChange = () => {
-                clearTimeout(updateTimeout); // Debounce updates
-                updateTimeout = setTimeout(() => {
-                    socket.emit('canvasChange', JSON.stringify(canvas.toJSON()));
-                }, 100); // Send update every 100ms
-            };
-
-            // Listen for incoming canvas changes from other users
-            socket.on('canvasChange', (jsonState) => {
-                const receivedState = JSON.parse(jsonState);
-                // Only update if the change didn't originate from this client (simple check)
-                // More robust solutions use a unique ID per object or versioning.
-                canvas.loadFromJSON(receivedState, () => {
-                    canvas.renderAll();
-                });
-            });
-
-            // --- Tool Management ---
-            const toolButtons = document.querySelectorAll('.tool-btn');
-            const penThicknessInput = document.getElementById('pen-thickness');
-            const penColorInput = document.getElementById('pen-color');
-
-            // Set initial drawing properties
-            canvas.freeDrawingBrush.width = parseInt(penThicknessInput.value);
-            canvas.freeDrawingBrush.color = penColorInput.value;
-
-            // Handle tool selection
-            const activateTool = (tool) => {
-                canvas.isDrawingMode = false;
-                canvas.selection = true; // Allow selecting existing objects
-                canvas.defaultCursor = 'default';
-
-                // Reset specific properties
-                canvas.forEachObject(obj => obj.selectable = true);
-
-                switch (tool) {
-                    case 'pen':
-                        canvas.isDrawingMode = true;
-                        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
-                        canvas.freeDrawingBrush.width = parseInt(penThicknessInput.value);
-                        canvas.freeDrawingBrush.color = penColorInput.value;
-                        canvas.defaultCursor = 'crosshair';
-                        break;
-                    case 'eraser':
-                        canvas.isDrawingMode = true;
-                        // Eraser is typically just a thick white/transparent brush.
-                        // For more advanced eraser, you'd need to remove intersections.
-                        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
-                        canvas.freeDrawingBrush.width = parseInt(penThicknessInput.value) * 2; // Thicker eraser
-                        canvas.freeDrawingBrush.color = canvas.backgroundColor || '#ffffff'; // Match background
-                        canvas.defaultCursor = 'url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAVElEQVRIie3SoQ0AMAwDwUoK+y/lF6XhKj808iV2c/2qQnQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhPQQhQpQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhUjQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhQhUoN7kLw.
-
-### Part 2: `server.js` (Node.js Server for Real-time Collaboration)
-
-This file sets up a simple Node.js server using Express and Socket.IO to facilitate real-time drawing and chat.
-
-**Important:** This `server.js` needs to be run from your command line using Node.js. It cannot be directly included in your `index.html`.
-
-1.  **Create a folder** for your project (e.g., `whiteboard-app`).
-2.  Inside, create `index.html` (copy-paste the code above).
-3.  Also inside, create `server.js` (copy-paste the code below).
-4.  **Initialize Node.js project and install dependencies:**
-    *   Open your terminal/command prompt.
-    *   Navigate to your project folder: `cd whiteboard-app`
-    *   Initialize npm: `npm init -y`
-    *   Install Express and Socket.IO: `npm install express socket.io`
-
-5.  **Run the server:**
-    *   `node server.js`
-    *   You should see "Server running on port 3000" in your terminal.
-
-```javascript
-// server.js
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: "*", // Allow all origins for simplicity (for local development)
-        methods: ["GET", "POST"]
+  </div>
+  <div class="panel-section">
+    <div class="panel-title">Fill</div>
+    <label class="check-row">
+      <input type="checkbox" id="fill-toggle"> Enable Fill
+    </label>
+    <div class="slider-row">
+      <label>Color</label>
+      <input type="color" id="fill-color" value="#6366f1" style="width:32px;height:28px;border:none;padding:0;cursor:pointer;border-radius:4px">
+    </div>
+  </div>
+  <div class="panel-section" id="text-settings">
+    <div class="panel-title">Text Settings</div>
+    <div class="slider-row">
+      <label>Size</label>
+      <input type="range" id="font-size-slider" min="10" max="120" value="24">
+      <span class="val" id="font-size-val">24</span>
+    </div>
+    <div class="slider-row">
+      <label>Color</label>
+      <input type="color" id="font-color" value="#1e293b" style="width:32px;height:28px;border:none;padding:0;cursor:pointer;border-radius:4px">
+    </div>
+    <div class="font-controls" style="margin-top:6px">
+      <button class="font-btn" id="btn-bold" onclick="app.toggleBold()"><b>B</b></button>
+      <button class="font-btn" id="btn-italic" onclick="app.toggleItalic()"><i>I</i></button>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-title">Background</div>
+    <div class="bg-options">
+      <div class="bg-opt active" data-bg="white" onclick="app.setBg('white')">⬜ White</div>
+      <div class="bg-opt" data-bg="grid" onclick="app.setBg('grid')">▦ Grid</div>
+      <div class="bg-opt" data-bg="lined" onclick="app.setBg('lined')">☰ Lined</div>
+      <div class="bg-opt" data-bg="dark" onclick="app.setBg('dark')">⬛ Dark</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-title">Math Symbols</div>
+    <div class="math-grid" id="math-grid"></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-title">Shortcuts</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.8">
+      <div><b>P</b> Pen &nbsp; <b>E</b> Eraser &nbsp; <b>T</b> Text</div>
+      <div><b>C</b> Circle &nbsp; <b>Ctrl+Z</b> Undo</div>
+      <div><b>Ctrl+Y</b> Redo &nbsp; <b>Ctrl+S</b> Save</div>
+      <div><b>Ctrl+N</b> New Page &nbsp; <b>Esc</b> Exit</div>
+      <div><b>Del</b> Delete Selected</div>
+    </div>
+  </div>
+</div>
+<!-- BOTTOM BAR -->
+<div id="bottom-bar">
+  <div id="page-thumbs"></div>
+  <div class="page-actions">
+    <span class="page-indicator" id="page-indicator">1 / 1</span>
+    <button class="page-btn" onclick="app.addPage()">+ New</button>
+    <button class="page-btn" onclick="app.duplicatePage()">⧉ Copy</button>
+  </div>
+</div>
+<!-- TIMER MODAL -->
+<div class="modal-overlay" id="timer-modal">
+  <div class="modal">
+    <h3>⏱ Countdown Timer</h3>
+    <div class="timer-display" id="timer-display">05:00</div>
+    <div class="timer-input">
+      <input type="number" id="timer-min" value="5" min="0" max="99" placeholder="Min">
+      <span style="font-size:24px;font-weight:700">:</span>
+      <input type="number" id="timer-sec" value="0" min="0" max="59" placeholder="Sec">
+    </div>
+    <div class="timer-controls">
+      <button class="modal-btn primary" id="timer-start-btn" onclick="timerStart()">▶ Start</button>
+      <button class="modal-btn secondary" onclick="timerReset()">↺ Reset</button>
+      <button class="modal-btn secondary" onclick="closeTimer()">✕ Close</button>
+    </div>
+  </div>
+</div>
+<!-- RENAME MODAL -->
+<div class="modal-overlay" id="rename-modal">
+  <div class="modal">
+    <h3>Rename Page</h3>
+    <input type="text" id="rename-input" placeholder="Page name...">
+    <div class="modal-btns">
+      <button class="modal-btn secondary" onclick="closeRename()">Cancel</button>
+      <button class="modal-btn primary" onclick="confirmRename()">Rename</button>
+    </div>
+  </div>
+</div>
+<!-- CONTEXT MENU -->
+<div class="context-menu" id="page-context">
+  <div class="ctx-item" onclick="ctxRename()">✏️ Rename</div>
+  <div class="ctx-item" onclick="ctxDuplicate()">⧉ Duplicate</div>
+  <div class="ctx-item danger" onclick="ctxDelete()">🗑 Delete</div>
+</div>
+<!-- CLOCK -->
+<div class="clock-widget" id="clock-widget"></div>
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+<!-- FILE INPUT -->
+<input type="file" id="file-input" accept=".json" style="display:none">
+<script>
+// ============================================================
+// EDUBOARD - COMPLETE DIGITAL WHITEBOARD APPLICATION
+// ============================================================
+const COLORS = [
+  '#1e293b','#ef4444','#f97316','#eab308','#22c55e','#06b6d4',
+  '#3b82f6','#6366f1','#a855f7','#ec4899','#64748b','#ffffff'
+];
+const MATH_SYMBOLS = ['÷','×','±','√','π','²','³','≤','≥','≠','∞','Σ','∫','∂','Δ','θ','α','β','γ','∈','∉','⊂','⊃','∪','∩','∀','∃','→','⇒','≈'];
+// ============================================================
+// MAIN APPLICATION CLASS
+// ============================================================
+class WhiteboardApp {
+  constructor() {
+    this.canvas = document.getElementById('whiteboard');
+    this.ctx = this.canvas.getContext('2d');
+    this.container = document.getElementById('canvas-container');
+    this.offCanvas = document.createElement('canvas');
+    this.offCtx = this.offCanvas.getContext('2d');
+    this.pages = [{
+      id: Date.now(), name: 'Page 1', background: 'white',
+      actions: [], undoStack: [], redoStack: [], texts: []
+    }];
+    this.currentPageIndex = 0;
+    this.tool = 'pen';
+    this.color = '#1e293b';
+    this.size = 3;
+    this.opacity = 1;
+    this.fillEnabled = false;
+    this.fillColor = '#6366f1';
+    this.fontSize = 24;
+    this.fontColor = '#1e293b';
+    this.bold = false;
+    this.italic = false;
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.isDrawing = false;
+    this.currentAction = null;
+    this.startX = 0;
+    this.startY = 0;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.selectedIndex = -1;
+    this.dragOffset = null;
+    this.isPanning = false;
+    this.panStartX = 0;
+    this.panStartY = 0;
+    this.laserTrails = [];
+    this.spotlightActive = false;
+    this.textInputEl = null;
+    this.dpr = window.devicePixelRatio || 1;
+    this.animFrame = null;
+    this.setupCanvas();
+    this.setupEvents();
+    this.setupUI();
+    this.restoreSession();
+    this.startAutoSave();
+    this.render();
+  }
+  get page() { return this.pages[this.currentPageIndex]; }
+  // ============================================================
+  // CANVAS SETUP
+  // ============================================================
+  setupCanvas() {
+    const resize = () => {
+      const r = this.container.getBoundingClientRect();
+      this.displayW = r.width;
+      this.displayH = r.height;
+      this.canvas.width = r.width * this.dpr;
+      this.canvas.height = r.height * this.dpr;
+      this.canvas.style.width = r.width + 'px';
+      this.canvas.style.height = r.height + 'px';
+      this.offCanvas.width = this.canvas.width;
+      this.offCanvas.height = this.canvas.height;
+      const sc = document.getElementById('spotlight-canvas');
+      sc.width = r.width * this.dpr;
+      sc.height = r.height * this.dpr;
+      sc.style.width = r.width + 'px';
+      sc.style.height = r.height + 'px';
+      this.render();
+    };
+    resize();
+    window.addEventListener('resize', () => { clearTimeout(this._rt); this._rt = setTimeout(resize, 100); });
+  }
+  // ============================================================
+  // COORDINATE CONVERSION
+  // ============================================================
+  screenToWorld(sx, sy) {
+    return {
+      x: (sx - this.panX) / this.zoom,
+      y: (sy - this.panY) / this.zoom
+    };
+  }
+  getCoords(e) {
+    const r = this.canvas.getBoundingClientRect();
+    let cx, cy;
+    if (e.touches && e.touches.length > 0) {
+      cx = e.touches[0].clientX - r.left;
+      cy = e.touches[0].clientY - r.top;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      cx = e.changedTouches[0].clientX - r.left;
+      cy = e.changedTouches[0].clientY - r.top;
+    } else {
+      cx = e.clientX - r.left;
+      cy = e.clientY - r.top;
     }
-});
-
-const PORT = process.env.PORT || 3000;
-
-// Serve static files from the same directory if index.html is there
-// app.use(express.static(__dirname));
-
-// Store the current state of the whiteboard
-// In a real application, this would be persistent (e.g., in a database)
-// and handle multiple rooms/boards. For simplicity, it's a single global state.
-let currentBoardState = JSON.stringify({ objects: [], background: '#ffffff' });
-
-// Simple message history for chat
-const chatHistory = [];
-
-io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
-
-    // Send the current board state to the newly connected user
-    socket.emit('boardState', currentBoardState);
-
-    // Send existing chat history to the new user
-    socket.emit('chatHistory', chatHistory);
-
-    // Listen for canvas changes from clients
-    socket.on('canvasChange', (jsonState) => {
-        currentBoardState = jsonState; // Update the global state
-        // Broadcast the change to all other connected clients
-        socket.broadcast.emit('canvasChange', jsonState);
+    return this.screenToWorld(cx, cy);
+  }
+  getRawCoords(e) {
+    const r = this.canvas.getBoundingClientRect();
+    if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
+    if (e.changedTouches && e.changedTouches.length > 0) return { x: e.changedTouches[0].clientX - r.left, y: e.changedTouches[0].clientY - r.top };
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  getClientCoords(e) {
+    if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if (e.changedTouches && e.changedTouches.length > 0) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+  // ============================================================
+  // EVENT SETUP
+  // ============================================================
+  setupEvents() {
+    const c = this.canvas;
+    c.addEventListener('pointerdown', e => this.onPointerDown(e));
+    c.addEventListener('pointermove', e => this.onPointerMove(e));
+    c.addEventListener('pointerup', e => this.onPointerUp(e));
+    c.addEventListener('pointerleave', e => this.onPointerUp(e));
+    c.addEventListener('wheel', e => { e.preventDefault(); this.onWheel(e); }, { passive: false });
+    c.addEventListener('contextmenu', e => e.preventDefault());
+    // Touch prevent default
+    c.addEventListener('touchstart', e => { if (this.tool !== 'select') e.preventDefault(); }, { passive: false });
+    c.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
+    // Keyboard
+    document.addEventListener('keydown', e => this.onKeyDown(e));
+    // Close context menu on click
+    document.addEventListener('click', () => {
+      document.getElementById('page-context').classList.remove('open');
     });
-
-    // Listen for chat messages
-    socket.on('chatMessage', (msg) => {
-        chatHistory.push(msg); // Store message
-        io.emit('chatMessage', msg); // Broadcast message to all clients
+  }
+  // ============================================================
+  // POINTER EVENTS
+  // ============================================================
+  onPointerDown(e) {
+    e.preventDefault();
+    this.canvas.setPointerCapture(e.pointerId);
+    const pt = this.getCoords(e);
+    const raw = this.getRawCoords(e);
+    const client = this.getClientCoords(e);
+    if (this.tool === 'laser') {
+      this.isDrawing = true;
+      return;
+    }
+    if (this.tool === 'spotlight') {
+      this.spotlightActive = true;
+      this.updateSpotlight(raw.x, raw.y);
+      document.getElementById('spotlight-canvas').classList.add('show');
+      return;
+    }
+    if (this.tool === 'pan') {
+      this.isPanning = true;
+      this.panStartX = raw.x - this.panX;
+      this.panStartY = raw.y - this.panY;
+      this.container.classList.add('grabbing');
+      return;
+    }
+    if (this.tool === 'select') {
+      this.handleSelectDown(pt);
+      return;
+    }
+    if (this.tool === 'text') {
+      this.createTextInput(pt, raw);
+      return;
+    }
+    // Drawing tools
+    this.isDrawing = true;
+    this.startX = pt.x;
+    this.startY = pt.y;
+    this.lastX = pt.x;
+    this.lastY = pt.y;
+    if (['pen','pencil','highlighter','eraser','freedraw'].includes(this.tool)) {
+      this.currentAction = {
+        type: 'stroke',
+        tool: this.tool,
+        points: [{ x: pt.x, y: pt.y }],
+        color: this.tool === 'eraser' ? '#000' : (this.tool === 'highlighter' ? this.color : this.color),
+        size: this.tool === 'highlighter' ? Math.max(this.size * 4, 20) : (this.tool === 'eraser' ? Math.max(this.size * 3, 15) : this.size),
+        opacity: this.tool === 'highlighter' ? 0.35 : (this.tool === 'eraser' ? 1 : this.opacity)
+      };
+    } else if (['line','arrow','rect','circle'].includes(this.tool)) {
+      this.currentAction = {
+        type: this.tool,
+        x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y,
+        color: this.color,
+        size: this.size,
+        opacity: this.opacity,
+        fill: this.fillEnabled,
+        fillColor: this.fillColor
+      };
+    }
+  }
+  onPointerMove(e) {
+    const pt = this.getCoords(e);
+    const raw = this.getRawCoords(e);
+    const client = this.getClientCoords(e);
+    // Laser
+    if (this.tool === 'laser') {
+      const dot = document.getElementById('laser-dot');
+      dot.classList.add('show');
+      dot.style.left = client.x + 'px';
+      dot.style.top = client.y + 'px';
+      this.laserTrails.push({ x: client.x, y: client.y, t: Date.now() });
+      if (this.laserTrails.length > 30) this.laserTrails.shift();
+      return;
+    }
+    if (this.tool !== 'laser') {
+      document.getElementById('laser-dot').classList.remove('show');
+    }
+    // Spotlight
+    if (this.tool === 'spotlight') {
+      this.updateSpotlight(raw.x, raw.y);
+      return;
+    }
+    // Pan
+    if (this.isPanning) {
+      this.panX = raw.x - this.panStartX;
+      this.panY = raw.y - this.panStartY;
+      this.render();
+      return;
+    }
+    // Select drag
+    if (this.tool === 'select' && this.dragOffset) {
+      this.handleSelectMove(pt);
+      return;
+    }
+    if (!this.isDrawing || !this.currentAction) return;
+    if (this.currentAction.type === 'stroke') {
+      let px = pt.x, py = pt.y;
+      if (this.currentAction.tool === 'pencil') {
+        px += (Math.random() - 0.5) * 1.5;
+        py += (Math.random() - 0.5) * 1.5;
+      }
+      this.currentAction.points.push({ x: px, y: py });
+    } else {
+      this.currentAction.x2 = pt.x;
+      this.currentAction.y2 = pt.y;
+    }
+    this.render();
+  }
+  onPointerUp(e) {
+    if (this.isPanning) {
+      this.isPanning = false;
+      this.container.classList.remove('grabbing');
+      return;
+    }
+    if (this.tool === 'spotlight') {
+      this.spotlightActive = false;
+      document.getElementById('spotlight-canvas').classList.remove('show');
+      return;
+    }
+    if (this.tool === 'select' && this.dragOffset) {
+      this.dragOffset = null;
+      this.render();
+      return;
+    }
+    if (!this.isDrawing) return;
+    this.isDrawing = false;
+    if (this.currentAction) {
+      // Only add if meaningful
+      let dominated = false;
+      if (this.currentAction.type === 'stroke' && this.currentAction.points.length < 2) dominated = true;
+      if (!dominated) {
+        this.page.undoStack.push([...this.page.actions]);
+        this.page.redoStack = [];
+        this.page.actions = [...this.page.actions, this.currentAction];
+        if (this.page.undoStack.length > 100) this.page.undoStack.shift();
+      }
+      this.currentAction = null;
+      this.render();
+      this.updateThumbnail();
+    }
+  }
+  onWheel(e) {
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const newZoom = Math.max(0.2, Math.min(5, this.zoom + delta));
+    const raw = this.getRawCoords(e);
+    // Zoom toward cursor
+    const wx = (raw.x - this.panX) / this.zoom;
+    const wy = (raw.y - this.panY) / this.zoom;
+    this.zoom = newZoom;
+    this.panX = raw.x - wx * this.zoom;
+    this.panY = raw.y - wy * this.zoom;
+    document.getElementById('zoom-label').textContent = Math.round(this.zoom * 100) + '%';
+    this.render();
+  }
+  // ============================================================
+  // SELECT TOOL
+  // ============================================================
+  handleSelectDown(pt) {
+    // Hit test in reverse order (top first)
+    this.selectedIndex = -1;
+    const actions = this.page.actions;
+    for (let i = actions.length - 1; i >= 0; i--) {
+      if (this.hitTest(actions[i], pt)) {
+        this.selectedIndex = i;
+        const bounds = this.getBounds(actions[i]);
+        this.dragOffset = { x: pt.x - bounds.x, y: pt.y - bounds.y };
+        break;
+      }
+    }
+    this.render();
+  }
+  handleSelectMove(pt) {
+    if (this.selectedIndex < 0) return;
+    const action = this.page.actions[this.selectedIndex];
+    const bounds = this.getBounds(action);
+    const dx = pt.x - this.dragOffset.x - bounds.x;
+    const dy = pt.y - this.dragOffset.y - bounds.y;
+    const moved = JSON.parse(JSON.stringify(action));
+    if (moved.type === 'stroke') {
+      moved.points = moved.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+    } else if (moved.type === 'text') {
+      moved.x += dx; moved.y += dy;
+    } else {
+      moved.x1 += dx; moved.y1 += dy;
+      moved.x2 += dx; moved.y2 += dy;
+    }
+    // Save undo only on first move
+    if (!this._selectUndoSaved) {
+      this.page.undoStack.push([...this.page.actions]);
+      this.page.redoStack = [];
+      this._selectUndoSaved = true;
+    }
+    const newActions = [...this.page.actions];
+    newActions[this.selectedIndex] = moved;
+    this.page.actions = newActions;
+    this.render();
+  }
+  hitTest(action, pt) {
+    const threshold = 10;
+    if (action.type === 'stroke') {
+      return action.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < threshold + action.size);
+    }
+    if (action.type === 'text') {
+      return pt.x >= action.x && pt.x <= action.x + (action.width || 200) &&
+             pt.y >= action.y - action.fontSize && pt.y <= action.y + 5;
+    }
+    const b = this.getBounds(action);
+    const expand = threshold;
+    return pt.x >= b.x - expand && pt.x <= b.x + b.w + expand &&
+           pt.y >= b.y - expand && pt.y <= b.y + b.h + expand;
+  }
+  getBounds(action) {
+    if (action.type === 'stroke') {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      action.points.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+    if (action.type === 'text') {
+      return { x: action.x, y: action.y - action.fontSize, w: action.width || 200, h: action.fontSize + 5 };
+    }
+    const x = Math.min(action.x1, action.x2);
+    const y = Math.min(action.y1, action.y2);
+    return { x, y, w: Math.abs(action.x2 - action.x1), h: Math.abs(action.y2 - action.y1) };
+  }
+  // ============================================================
+  // TEXT TOOL
+  // ============================================================
+  createTextInput(pt, raw) {
+    this.finalizeText();
+    const div = document.createElement('div');
+    div.className = 'text-input-overlay';
+    div.contentEditable = true;
+    div.style.left = (raw.x * 1) + 'px';
+    div.style.top = (raw.y * 1) + 'px';
+    div.style.fontSize = this.fontSize + 'px';
+    div.style.color = this.fontColor;
+    div.style.fontWeight = this.bold ? 'bold' : 'normal';
+    div.style.fontStyle = this.italic ? 'italic' : 'normal';
+    div.dataset.worldX = pt.x;
+    div.dataset.worldY = pt.y;
+    this.container.appendChild(div);
+    div.focus();
+    this.textInputEl = div;
+    div.addEventListener('keydown', e => {
+      if (e.key === 'Escape') this.finalizeText();
     });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+    div.addEventListener('blur', () => {
+      setTimeout(() => this.finalizeText(), 200);
     });
-});
-
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Open http://localhost:${PORT} in your browser`);
-});
-
-// Optional: Serve index.html if you access http://localhost:3000 directly
-// If you're opening index.html directly from file system (file:///...),
-// then the app.use(express.static(__dirname)) might not be needed.
-// However, for sharing a link, the server needs to serve the index.html.
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+  }
+  finalizeText() {
+    if (!this.textInputEl) return;
+    const el = this.textInputEl;
+    const text = el.innerText.trim();
+    if (text) {
+      const action = {
+        type: 'text',
+        x: parseFloat(el.dataset.worldX),
+        y: parseFloat(el.dataset.worldY) + this.fontSize,
+        text: text,
+        fontSize: parseInt(el.style.fontSize),
+        fontColor: el.style.color,
+        bold: el.style.fontWeight === 'bold',
+        italic: el.style.fontStyle === 'italic',
+        width: el.offsetWidth
+      };
+      this.page.undoStack.push([...this.page.actions]);
+      this.page.redoStack = [];
+      this.page.actions = [...this.page.actions, action];
+    }
+    el.remove();
+    this.textInputEl = null;
+    this.render();
+    this.updateThumbnail();
+  }
+  // ============================================================
+  // RENDERING
+  // ============================================================
+  render() {
+    const ctx = this.ctx;
+    const offCtx = this.offCtx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const dpr = this.dpr;
+    ctx.clearRect(0, 0, w, h);
+    offCtx.clearRect(0, 0, w, h);
+    // Background on main canvas
+    ctx.save();
+    ctx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, this.panX * dpr, this.panY * dpr);
+    this.drawBackground(ctx);
+    ctx.restore();
+    // Draw actions on offscreen canvas
+    offCtx.save();
+    offCtx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, this.panX * dpr, this.panY * dpr);
+    const actions = this.page.actions;
+    for (let i = 0; i < actions.length; i++) {
+      if (actions[i].tool === 'eraser') {
+        offCtx.globalCompositeOperation = 'destination-out';
+      } else {
+        offCtx.globalCompositeOperation = 'source-over';
+      }
+      this.drawAction(offCtx, actions[i]);
+    }
+    // Current drawing preview
+    if (this.currentAction) {
+      if (this.currentAction.tool === 'eraser') {
+        offCtx.globalCompositeOperation = 'destination-out';
+      } else {
+        offCtx.globalCompositeOperation = 'source-over';
+      }
+      this.drawAction(offCtx, this.currentAction);
+    }
+    offCtx.globalCompositeOperation = 'source-over';
+    offCtx.restore();
+    // Composite
+    ctx.drawImage(this.offCanvas, 0, 0);
+    // Selection highlight
+    if (this.tool === 'select' && this.selectedIndex >= 0 && this.selectedIndex < actions.length) {
+      ctx.save();
+      ctx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, this.panX * dpr, this.panY * dpr);
+      const b = this.getBounds(actions[this.selectedIndex]);
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 2 / this.zoom;
+      ctx.setLineDash([6 / this.zoom, 4 / this.zoom]);
+      ctx.strokeRect(b.x - 4, b.y - 4, b.w + 8, b.h + 8);
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+  drawBackground(ctx) {
+    const bg = this.page.background;
+    const vw = this.displayW / this.zoom + Math.abs(this.panX / this.zoom) + 200;
+    const vh = this.displayH / this.zoom + Math.abs(this.panY / this.zoom) + 200;
+    const ox = -this.panX / this.zoom - 100;
+    const oy = -this.panY / this.zoom - 100;
+    if (bg === 'dark') {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(ox, oy, vw, vh);
+    } else if (bg === 'white') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(ox, oy, vw, vh);
+    } else if (bg === 'grid') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(ox, oy, vw, vh);
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 0.5;
+      const gs = 30;
+      const startX = Math.floor(ox / gs) * gs;
+      const startY = Math.floor(oy / gs) * gs;
+      ctx.beginPath();
+      for (let x = startX; x < ox + vw; x += gs) {
+        ctx.moveTo(x, oy);
+        ctx.lineTo(x, oy + vh);
+      }
+      for (let y = startY; y < oy + vh; y += gs) {
+        ctx.moveTo(ox, y);
+        ctx.lineTo(ox + vw, y);
+      }
+      ctx.stroke();
+    } else if (bg === 'lined') {
+      ctx.fillStyle = '#fffef5';
+      ctx.fillRect(ox, oy, vw, vh);
+      ctx.strokeStyle = '#d4d4d8';
+      ctx.lineWidth = 0.5;
+      const ls = 32;
+      const startY = Math.floor(oy / ls) * ls;
+      ctx.beginPath();
+      for (let y = startY; y < oy + vh; y += ls) {
+        ctx.moveTo(ox, y);
+        ctx.lineTo(ox + vw, y);
+      }
+      ctx.stroke();
+      // Red margin line
+      ctx.strokeStyle = '#fca5a5';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(60, oy);
+      ctx.lineTo(60, oy + vh);
+      ctx.stroke();
+    }
+  }
+  drawAction(ctx, action) {
+    if (action.type === 'stroke') {
+      this.drawStroke(ctx, action);
+    } else if (action.type === 'text') {
+      this.drawText(ctx, action);
+    } else if (action.type === 'line') {
+      this.drawLine(ctx, action);
+    } else if (action.type === 'arrow') {
+      this.drawArrow(ctx, action);
+    } else if (action.type === 'rect') {
+      this.drawRect(ctx, action);
+    } else if (action.type === 'circle') {
+      this.drawCircle(ctx, action);
+    }
+  }
+  drawStroke(ctx, s) {
+    const pts = s.points;
+    if (pts.length < 1) return;
+    ctx.save();
+    ctx.globalAlpha = s.opacity;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.size;
+    ctx.lineCap = s.tool === 'highlighter' ? 'square' : 'round';
+    ctx.lineJoin = 'round';
+    if (pts.length === 1) {
+      ctx.beginPath();
+      ctx.arc(pts[0].x, pts[0].y, s.size / 2, 0, Math.PI * 2);
+      ctx.fillStyle = s.color;
+      ctx.fill();
+    } else if (pts.length === 2) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      ctx.lineTo(pts[1].x, pts[1].y);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mx = (pts[i].x + pts[i + 1].x) / 2;
+        const my = (pts[i].y + pts[i + 1].y) / 2;
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+      }
+      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  drawText(ctx, t) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    let font = '';
+    if (t.italic) font += 'italic ';
+    if (t.bold) font += 'bold ';
+    font += t.fontSize + 'px "Segoe UI", system-ui, sans-serif';
+    ctx.font = font;
+    ctx.fillStyle = t.fontColor;
+    ctx.textBaseline = 'alphabetic';
+    const lines = t.text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], t.x, t.y + i * t.fontSize * 1.2);
+    }
+    ctx.restore();
+  }
+  drawLine(ctx, a) {
+    ctx.save();
+    ctx.globalAlpha = a.opacity;
+    ctx.strokeStyle = a.color;
+    ctx.lineWidth = a.size;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x1, a.y1);
+    ctx.lineTo(a.x2, a.y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  drawArrow(ctx, a) {
+    ctx.save();
+    ctx.globalAlpha = a.opacity;
+    ctx.strokeStyle = a.color;
+    ctx.fillStyle = a.color;
+    ctx.lineWidth = a.size;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x1, a.y1);
+    ctx.lineTo(a.x2, a.y2);
+    ctx.stroke();
+    // Arrowhead
+    const angle = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
+    const hl = Math.max(12, a.size * 4);
+    ctx.beginPath();
+    ctx.moveTo(a.x2, a.y2);
+    ctx.lineTo(a.x2 - hl * Math.cos(angle - Math.PI / 6), a.y2 - hl * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(a.x2 - hl * Math.cos(angle + Math.PI / 6), a.y2 - hl * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  drawRect(ctx, a) {
+    ctx.save();
+    ctx.globalAlpha = a.opacity;
+    const x = Math.min(a.x1, a.x2);
+    const y = Math.min(a.y1, a.y2);
+    const w = Math.abs(a.x2 - a.x1);
+    const h = Math.abs(a.y2 - a.y1);
+    if (a.fill) {
+      ctx.fillStyle = a.fillColor;
+      ctx.fillRect(x, y, w, h);
+    }
+    ctx.strokeStyle = a.color;
+    ctx.lineWidth = a.size;
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
+  }
+  drawCircle(ctx, a) {
+    ctx.save();
+    ctx.globalAlpha = a.opacity;
+    const cx = (a.x1 + a.x2) / 2;
+    const cy = (a.y1 + a.y2) / 2;
+    const rx = Math.abs(a.x2 - a.x1) / 2;
+    const ry = Math.abs(a.y2 - a.y1) / 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, Math.max(rx, 1), Math.max(ry, 1), 0, 0, Math.PI * 2);
+    if (a.fill) {
+      ctx.fillStyle = a.fillColor;
+      ctx.fill();
+    }
+    ctx.strokeStyle = a.color;
+    ctx.lineWidth = a.size;
+    ctx.stroke();
+    ctx.restore();
+  }
+  // ============================================================
+  // SPOTLIGHT
+  // ============================================================
+  updateSpotlight(rx, ry) {
+    const sc = document.getElementById('spotlight-canvas');
+    const sctx = sc.getContext('2d');
+    const w = sc.width, h = sc.height;
+    sctx.clearRect(0, 0, w, h);
+    sctx.fillStyle = 'rgba(0,0,0,0.7)';
+    sctx.fillRect(0, 0, w, h);
+    sctx.globalCompositeOperation = 'destination-out';
+    const r = 100 * this.dpr;
+    const grad = sctx.createRadialGradient(rx * this.dpr, ry * this.dpr, r * 0.6, rx * this.dpr, ry * this.dpr, r);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.fillStyle = grad;
+    sctx.beginPath();
+    sctx.arc(rx * this.dpr, ry * this.dpr, r, 0, Math.PI * 2);
+    sctx.fill();
+    sctx.globalCompositeOperation = 'source-over';
+  }
+  // ============================================================
+  // TOOL MANAGEMENT
+  // ============================================================
+  setTool(tool) {
+    this.finalizeText();
+    this._selectUndoSaved = false;
+    this.selectedIndex = -1;
+    this.tool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    const cc = this.container;
+    cc.className = '';
+    if (tool === 'pan') cc.classList.add('grab');
+    else if (tool === 'text') cc.classList.add('text-cursor');
+    else if (tool === 'select') cc.classList.add('select-cursor');
+    if (tool !== 'laser') document.getElementById('laser-dot').classList.remove('show');
+    if (tool !== 'spotlight') document.getElementById('spotlight-canvas').classList.remove('show');
+    this.render();
+  }
+  // ============================================================
+  // UNDO / REDO / CLEAR
+  // ============================================================
+  undo() {
+    const page = this.page;
+    if (page.undoStack.length === 0) return;
+    page.redoStack.push([...page.actions]);
+    page.actions = page.undoStack.pop();
+    this.render();
+    this.updateThumbnail();
+  }
+  redo() {
+    const page = this.page;
+    if (page.redoStack.length === 0) return;
+    page.undoStack.push([...page.actions]);
+    page.actions = page.redoStack.pop();
+    this.render();
+    this.updateThumbnail();
+  }
+  clearBoard() {
+    if (this.page.actions.length === 0) return;
+    this.page.undoStack.push([...this.page.actions]);
+    this.page.redoStack = [];
+    this.page.actions = [];
+    this.render();
+    this.updateThumbnail();
+    showToast('Board cleared');
+  }
+  // ============================================================
+  // ZOOM
+  // ============================================================
+  zoomIn() {
+    this.zoom = Math.min(5, this.zoom + 0.2);
+    document.getElementById('zoom-label').textContent = Math.round(this.zoom * 100) + '%';
+    this.render();
+  }
+  zoomOut() {
+    this.zoom = Math.max(0.2, this.zoom - 0.2);
+    document.getElementById('zoom-label').textContent = Math.round(this.zoom * 100) + '%';
+    this.render();
+  }
+  resetZoom() {
+    this.zoom = 1; this.panX = 0; this.panY = 0;
+    document.getElementById('zoom-label').textContent = '100%';
+    this.render();
+  }
+  // ============================================================
+  // PAGE MANAGEMENT
+  // ============================================================
+  addPage() {
+    this.finalizeText();
+    const page = {
+      id: Date.now(), name: 'Page ' + (this.pages.length + 1),
+      background: 'white', actions: [], undoStack: [], redoStack: [], texts: []
+    };
+    this.pages.push(page);
+    this.currentPageIndex = this.pages.length - 1;
+    this.zoom = 1; this.panX = 0; this.panY = 0;
+    document.getElementById('zoom-label').textContent = '100%';
+    this.render();
+    this.updatePageBar();
+    showToast('New page added');
+  }
+  duplicatePage() {
+    this.finalizeText();
+    const src = this.page;
+    const page = {
+      id: Date.now(), name: src.name + ' (copy)',
+      background: src.background,
+      actions: JSON.parse(JSON.stringify(src.actions)),
+      undoStack: [], redoStack: [], texts: []
+    };
+    this.pages.splice(this.currentPageIndex + 1, 0, page);
+    this.currentPageIndex++;
+    this.render();
+    this.updatePageBar();
+    showToast('Page duplicated');
+  }
+  deletePage(index) {
+    if (this.pages.length <= 1) { showToast('Cannot delete last page'); return; }
+    this.pages.splice(index, 1);
+    if (this.currentPageIndex >= this.pages.length) this.currentPageIndex = this.pages.length - 1;
+    this.render();
+    this.updatePageBar();
+    showToast('Page deleted');
+  }
+  switchPage(index) {
+    if (index < 0 || index >= this.pages.length) return;
+    this.finalizeText();
+    this.currentPageIndex = index;
+    this.selectedIndex = -1;
+    this.render();
+    this.updatePageBar();
+  }
+  // ============================================================
+  // THUMBNAILS
+  // ============================================================
+  updatePageBar() {
+    const container = document.getElementById('page-thumbs');
+    container.innerHTML = '';
+    this.pages.forEach((page, i) => {
+      const div = document.createElement('div');
+      div.className = 'page-thumb' + (i === this.currentPageIndex ? ' active' : '');
+      div.onclick = (e) => { if (!e.target.classList.contains('page-del')) this.switchPage(i); };
+      div.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._ctxPageIndex = i;
+        const menu = document.getElementById('page-context');
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+        menu.classList.add('open');
+      };
+      const tc = document.createElement('canvas');
+      tc.width = 200; tc.height = 120;
+      div.appendChild(tc);
+      const numSpan = document.createElement('span');
+      numSpan.className = 'page-num';
+      numSpan.textContent = (i + 1);
+      div.appendChild(numSpan);
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'page-name';
+      nameSpan.textContent = page.name;
+      div.appendChild(nameSpan);
+      if (this.pages.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'page-del';
+        delBtn.textContent = '×';
+        delBtn.onclick = (e) => { e.stopPropagation(); this.deletePage(i); };
+        div.appendChild(delBtn);
+      }
+      container.appendChild(div);
+      this.renderThumbnail(tc, page);
+    });
+    document.getElementById('page-indicator').textContent =
+      (this.currentPageIndex + 1) + ' / ' + this.pages.length;
+  }
+  renderThumbnail(tc, page) {
+    const tctx = tc.getContext('2d');
+    const w = tc.width, h = tc.height;
+    tctx.clearRect(0, 0, w, h);
+    // Background
+    if (page.background === 'dark') { tctx.fillStyle = '#1e293b'; }
+    else if (page.background === 'lined') { tctx.fillStyle = '#fffef5'; }
+    else { tctx.fillStyle = '#ffffff'; }
+    tctx.fillRect(0, 0, w, h);
+    if (page.background === 'grid') {
+      tctx.strokeStyle = '#e2e8f0';
+      tctx.lineWidth = 0.3;
+      for (let x = 0; x < w; x += 10) { tctx.beginPath(); tctx.moveTo(x, 0); tctx.lineTo(x, h); tctx.stroke(); }
+      for (let y = 0; y < h; y += 10) { tctx.beginPath(); tctx.moveTo(0, y); tctx.lineTo(w, y); tctx.stroke(); }
+    }
+    if (page.background === 'lined') {
+      tctx.strokeStyle = '#d4d4d8';
+      tctx.lineWidth = 0.3;
+      for (let y = 10; y < h; y += 10) { tctx.beginPath(); tctx.moveTo(0, y); tctx.lineTo(w, y); tctx.stroke(); }
+    }
+    // Scale to fit
+    const scaleX = w / (this.displayW || 800);
+    const scaleY = h / (this.displayH || 600);
+    const scale = Math.min(scaleX, scaleY);
+    tctx.save();
+    tctx.scale(scale, scale);
+    for (const action of page.actions) {
+      if (action.tool === 'eraser') {
+        tctx.globalCompositeOperation = 'destination-out';
+      } else {
+        tctx.globalCompositeOperation = 'source-over';
+      }
+      this.drawAction(tctx, action);
+    }
+    tctx.globalCompositeOperation = 'source-over';
+    tctx.restore();
+  }
+  updateThumbnail() {
+    clearTimeout(this._thumbTimer);
+    this._thumbTimer = setTimeout(() => this.updatePageBar(), 300);
+  }
+  // ============================================================
+  // BACKGROUND
+  // ============================================================
+  setBg(bg) {
+    this.page.background = bg;
+    document.querySelectorAll('.bg-opt').forEach(b => b.classList.toggle('active', b.dataset.bg === bg));
+    this.render();
+    this.updateThumbnail();
+  }
+  // ============================================================
+  // TEXT FORMATTING
+  // ============================================================
+  toggleBold() {
+    this.bold = !this.bold;
+    document.getElementById('btn-bold').classList.toggle('active', this.bold);
+    if (this.textInputEl) this.textInputEl.style.fontWeight = this.bold ? 'bold' : 'normal';
+  }
+  toggleItalic() {
+    this.italic = !this.italic;
+    document.getElementById('btn-italic').classList.toggle('active', this.italic);
+    if (this.textInputEl) this.textInputEl.style.fontStyle = this.italic ? 'italic' : 'normal';
+  }
+  // ============================================================
+  // SAVE / LOAD
+  // ============================================================
+  saveAsPNG() {
+    this.finalizeText();
+    const tempCanvas = document.createElement('canvas');
+    const w = this.displayW * 2;
+    const h = this.displayH * 2;
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tctx = tempCanvas.getContext('2d');
+    tctx.scale(2, 2);
+    // Draw background
+    const oldZoom = this.zoom, oldPx = this.panX, oldPy = this.panY;
+    this.zoom = 1; this.panX = 0; this.panY = 0;
+    this.drawBackground(tctx);
+    // Draw actions
+    const offTemp = document.createElement('canvas');
+    offTemp.width = w; offTemp.height = h;
+    const offTctx = offTemp.getContext('2d');
+    offTctx.scale(2, 2);
+    for (const action of this.page.actions) {
+      if (action.tool === 'eraser') offTctx.globalCompositeOperation = 'destination-out';
+      else offTctx.globalCompositeOperation = 'source-over';
+      this.drawAction(offTctx, action);
+    }
+    offTctx.globalCompositeOperation = 'source-over';
+    tctx.drawImage(offTemp, 0, 0, w, h, 0, 0, this.displayW, this.displayH);
+    this.zoom = oldZoom; this.panX = oldPx; this.panY = oldPy;
+    const link = document.createElement('a');
+    link.download = 'whiteboard-' + Date.now() + '.png';
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+    showToast('Saved as PNG');
+  }
+  saveAsPDF() {
+    this.finalizeText();
+    const tempCanvas = document.createElement('canvas');
+    const w = this.displayW * 2;
+    const h = this.displayH * 2;
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tctx = tempCanvas.getContext('2d');
+    tctx.scale(2, 2);
+    const oldZoom = this.zoom, oldPx = this.panX, oldPy = this.panY;
+    this.zoom = 1; this.panX = 0; this.panY = 0;
+    this.drawBackground(tctx);
+    const offTemp = document.createElement('canvas');
+    offTemp.width = w; offTemp.height = h;
+    const offTctx = offTemp.getContext('2d');
+    offTctx.scale(2, 2);
+    for (const action of this.page.actions) {
+      if (action.tool === 'eraser') offTctx.globalCompositeOperation = 'destination-out';
+      else offTctx.globalCompositeOperation = 'source-over';
+      this.drawAction(offTctx, action);
+    }
+    tctx.drawImage(offTemp, 0, 0, w, h, 0, 0, this.displayW, this.displayH);
+    this.zoom = oldZoom; this.panX = oldPx; this.panY = oldPy;
+    const imgData = tempCanvas.toDataURL('image/png');
+    const pw = window.open('', '_blank');
+    if (pw) {
+      pw.document.write(
+        '<!DOCTYPE html><html><head><title>EduBoard PDF</title><style>@page{margin:0}body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:white}img{max-width:100%;max-height:100vh;object-fit:contain}</style></head><body>' +
+        '<img src="' + imgData + '" onload="setTimeout(()=>{window.print()},300)">' +
+        '</body></html>'
+      );
+      pw.document.close();
+    }
+    showToast('PDF print dialog opened');
+  }
+  saveAsJSON() {
+    this.finalizeText();
+    const data = {
+      version: 1,
+      pages: this.pages.map(p => ({
+        id: p.id, name: p.name, background: p.background,
+        actions: p.actions
+      })),
+      currentPage: this.currentPageIndex
+    };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.download = 'whiteboard-' + Date.now() + '.json';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    showToast('Saved as JSON');
+  }
+  loadFromFile() {
+    const input = document.getElementById('file-input');
+    input.value = '';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (data.pages) {
+            this.pages = data.pages.map(p => ({
+              ...p, undoStack: [], redoStack: [], texts: p.texts || []
+            }));
+            this.currentPageIndex = Math.min(data.currentPage || 0, this.pages.length - 1);
+            this.render();
+            this.updatePageBar();
+            showToast('File loaded successfully');
+          }
+        } catch (err) {
+          showToast('Error loading file');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+  // ============================================================
+  // AUTO-SAVE & RESTORE
+  // ============================================================
+  startAutoSave() {
+    setInterval(() => {
+      try {
+        const data = {
+          pages: this.pages.map(p => ({
+            id: p.id, name: p.name, background: p.background,
+            actions: p.actions
+          })),
+          currentPage: this.currentPageIndex
+        };
+        localStorage.setItem('eduboard_data', JSON.stringify(data));
+      } catch (e) {
+        console.warn('Auto-save failed:', e);
+      }
+    }, 5000);
+  }
+  restoreSession() {
+    try {
+      const saved = localStorage.getItem('eduboard_data');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.pages && data.pages.length > 0) {
+          this.pages = data.pages.map(p => ({
+            ...p, undoStack: [], redoStack: [], texts: p.texts || []
+          }));
+          this.currentPageIndex = Math.min(data.currentPage || 0, this.pages.length - 1);
+          showToast('Previous session restored');
+        }
+      }
+    } catch (e) {
+      console.warn('Restore failed:', e);
+    }
+    this.updatePageBar();
+  }
+  // ============================================================
+  // KEYBOARD SHORTCUTS
+  // ============================================================
+  onKeyDown(e) {
+    // Ignore if typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'z' || e.key === 'Z') { e.preventDefault(); this.undo(); }
+      else if (e.key === 'y' || e.key === 'Y') { e.preventDefault(); this.redo(); }
+      else if (e.key === 's' || e.key === 'S') { e.preventDefault(); this.saveAsPNG(); }
+      else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); this.addPage(); }
+      return;
+    }
+    if (e.key === 'p' || e.key === 'P') this.setTool('pen');
+    else if (e.key === 'e' || e.key === 'E') this.setTool('eraser');
+    else if (e.key === 't' || e.key === 'T') this.setTool('text');
+    else if (e.key === 'c' || e.key === 'C') this.setTool('circle');
+    else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (this.tool === 'select' && this.selectedIndex >= 0) {
+        this.page.undoStack.push([...this.page.actions]);
+        this.page.redoStack = [];
+        this.page.actions = this.page.actions.filter((_, i) => i !== this.selectedIndex);
+        this.selectedIndex = -1;
+        this.render();
+        this.updateThumbnail();
+      }
+    }
+    else if (e.key === 'Escape') {
+      if (document.body.classList.contains('present-mode')) {
+        document.body.classList.remove('present-mode');
+        this.setupCanvas();
+      }
+      this.finalizeText();
+    }
+  }
+  // ============================================================
+  // UI SETUP
+  // ============================================================
+  setupUI() {
+    // Color grid
+    const cg = document.getElementById('color-grid');
+    COLORS.forEach(c => {
+      const s = document.createElement('div');
+      s.className = 'color-swatch' + (c === this.color ? ' active' : '');
+      s.style.background = c;
+      if (c === '#ffffff') s.style.border = '2px solid #e2e8f0';
+      s.onclick = () => {
+        this.color = c;
+        document.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('active'));
+        s.classList.add('active');
+        document.getElementById('custom-color').value = c;
+      };
+      cg.appendChild(s);
+    });
+    // Custom color
+    document.getElementById('custom-color').oninput = (e) => {
+      this.color = e.target.value;
+      document.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('active'));
+    };
+    // Size slider
+    const ss = document.getElementById('size-slider');
+    ss.oninput = () => { this.size = parseInt(ss.value); document.getElementById('size-val').textContent = ss.value; };
+    // Opacity slider
+    const os = document.getElementById('opacity-slider');
+    os.oninput = () => { this.opacity = parseInt(os.value) / 100; document.getElementById('opacity-val').textContent = os.value + '%'; };
+    // Fill
+    document.getElementById('fill-toggle').onchange = (e) => { this.fillEnabled = e.target.checked; };
+    document.getElementById('fill-color').oninput = (e) => { this.fillColor = e.target.value; };
+    // Font size
+    const fs = document.getElementById('font-size-slider');
+    fs.oninput = () => {
+      this.fontSize = parseInt(fs.value);
+      document.getElementById('font-size-val').textContent = fs.value;
+      if (this.textInputEl) this.textInputEl.style.fontSize = fs.value + 'px';
+    };
+    // Font color
+    document.getElementById('font-color').oninput = (e) => {
+      this.fontColor = e.target.value;
+      if (this.textInputEl) this.textInputEl.style.color = e.target.value;
+    };
+    // Math symbols
+    const mg = document.getElementById('math-grid');
+    MATH_SYMBOLS.forEach(sym => {
+      const btn = document.createElement('button');
+      btn.className = 'math-btn';
+      btn.textContent = sym;
+      btn.onclick = () => {
+        if (this.textInputEl) {
+          this.textInputEl.textContent += sym;
+        } else {
+          // Create a text action at center of view
+          const cx = this.displayW / 2;
+          const cy = this.displayH / 2;
+          const wpt = this.screenToWorld(cx, cy);
+          const action = {
+            type: 'text', x: wpt.x, y: wpt.y, text: sym,
+            fontSize: this.fontSize, fontColor: this.fontColor,
+            bold: false, italic: false, width: this.fontSize * 1.2
+          };
+          this.page.undoStack.push([...this.page.actions]);
+          this.page.redoStack = [];
+          this.page.actions = [...this.page.actions, action];
+          this.render();
+          this.updateThumbnail();
+        }
+      };
+      mg.appendChild(btn);
+    });
+    this.updatePageBar();
+  }
+}
+// ============================================================
+// UI TOGGLE FUNCTIONS
+// ============================================================
+function toggleRightPanel() {
+  if (window.innerWidth <= 900) {
+    document.body.classList.toggle('right-open');
+  } else {
+    document.body.classList.toggle('right-closed');
+  }
+}
+function toggleLeftPanel() {
+  if (window.innerWidth <= 600) {
+    document.body.classList.toggle('left-open');
+  }
+}
+function toggleDarkMode() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('btn-dark').classList.toggle('active', !isDark);
+}
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+function togglePresentation() {
+  document.body.classList.toggle('present-mode');
+  setTimeout(() => app.setupCanvas(), 350);
+}
+// ============================================================
+// TIMER
+// ============================================================
+let timerInterval = null;
+let timerSeconds = 300;
+let timerRunning = false;
+function toggleTimer() {
+  document.getElementById('timer-modal').classList.toggle('open');
+}
+function closeTimer() {
+  document.getElementById('timer-modal').classList.remove('open');
+}
+function updateTimerDisplay() {
+  const m = Math.floor(timerSeconds / 60);
+  const s = timerSeconds % 60;
+  document.getElementById('timer-display').textContent =
+    String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+function timerStart() {
+  if (timerRunning) {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    document.getElementById('timer-start-btn').textContent = '▶ Start';
+    return;
+  }
+  if (timerSeconds <= 0) {
+    timerSeconds = parseInt(document.getElementById('timer-min').value || 0) * 60 +
+                   parseInt(document.getElementById('timer-sec').value || 0);
+  }
+  if (timerSeconds <= 0) return;
+  timerRunning = true;
+  document.getElementById('timer-start-btn').textContent = '⏸ Pause';
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    updateTimerDisplay();
+    if (timerSeconds <= 0) {
+      clearInterval(timerInterval);
+      timerRunning = false;
+      document.getElementById('timer-start-btn').textContent = '▶ Start';
+      timerAlarm();
+    }
+  }, 1000);
+}
+function timerReset() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  timerSeconds = parseInt(document.getElementById('timer-min').value || 0) * 60 +
+                 parseInt(document.getElementById('timer-sec').value || 0);
+  updateTimerDisplay();
+  document.getElementById('timer-start-btn').textContent = '▶ Start';
+}
+function timerAlarm() {
+  try {
+    const actx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 200, 400].forEach(delay => {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.value = 0.3;
+      osc.start(actx.currentTime + delay / 1000);
+      osc.stop(actx.currentTime + delay / 1000 + 0.15);
+    });
+  } catch (e) {}
+  showToast('⏰ Time is up!');
+}
+// ============================================================
+// CLOCK
+// ============================================================
+let clockInterval = null;
+function toggleClock() {
+  const w = document.getElementById('clock-widget');
+  if (w.classList.contains('show')) {
+    w.classList.remove('show');
+    clearInterval(clockInterval);
+    document.getElementById('btn-clock').classList.remove('active');
+  } else {
+    w.classList.add('show');
+    document.getElementById('btn-clock').classList.add('active');
+    updateClock();
+    clockInterval = setInterval(updateClock, 1000);
+  }
+}
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock-widget').textContent =
+    now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+// ============================================================
+// CONTEXT MENU
+// ============================================================
+function ctxRename() {
+  document.getElementById('rename-modal').classList.add('open');
+  document.getElementById('rename-input').value = app.pages[app._ctxPageIndex].name;
+  document.getElementById('rename-input').focus();
+}
+function ctxDuplicate() {
+  const idx = app._ctxPageIndex;
+  app.currentPageIndex = idx;
+  app.duplicatePage();
+}
+function ctxDelete() {
+  app.deletePage(app._ctxPageIndex);
+}
+function closeRename() {
+  document.getElementById('rename-modal').classList.remove('open');
+}
+function confirmRename() {
+  const name = document.getElementById('rename-input').value.trim();
+  if (name && app._ctxPageIndex != null) {
+    app.pages[app._ctxPageIndex].name = name;
+    app.updatePageBar();
+  }
+  closeRename();
+}
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+// ============================================================
+// INITIALIZATION
+// ============================================================
+const app = new WhiteboardApp();
+// Initial timer display
+timerSeconds = 300;
+updateTimerDisplay();
+</script>
 </body>
-    </html>
+</html>
